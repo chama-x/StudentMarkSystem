@@ -25,19 +25,28 @@ const TeacherDashboard = () => {
         const fetchData = async () => {
             try {
                 setLoading(true);
+                console.log('TeacherDashboard: Starting data fetch for grade', selectedGrade);
+                
+                console.log('TeacherDashboard: Fetching students and subjects...');
                 const [fetchedStudents, fetchedSubjects] = await Promise.all([
                     getStudentsByGrade(selectedGrade),
                     getSubjects(selectedGrade)
                 ]);
+                console.log('TeacherDashboard: Fetched students:', fetchedStudents);
+                console.log('TeacherDashboard: Fetched subjects:', fetchedSubjects);
+                
                 setStudents(fetchedStudents);
                 setSubjects(fetchedSubjects);
 
                 // Fetch marks for all students
+                console.log('TeacherDashboard: Fetching marks for all students...');
                 const marksPromises = fetchedStudents.map(student => getStudentMarks(student.id));
                 const allMarks = (await Promise.all(marksPromises)).flat();
+                console.log('TeacherDashboard: Fetched all marks:', allMarks);
+                
                 setMarks(allMarks);
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('TeacherDashboard: Error fetching data:', error);
                 toast.error('Failed to load data');
             } finally {
                 setLoading(false);

@@ -46,8 +46,16 @@ export const getUser = async (userId: string) => {
     return snapshot.exists() ? snapshot.val() : null;
 };
 
+export const updateUser = async (userId: string, updates: Partial<User>) => {
+    console.log('updateUser: Updating user', userId, 'with data:', updates);
+    const userRef = ref(database, `users/${userId}`);
+    await update(userRef, updates);
+    console.log('updateUser: User updated successfully');
+};
+
 // Student Operations
 export const getStudentsByGrade = async (grade: number) => {
+    console.log('getStudentsByGrade: Fetching students for grade', grade);
     const usersRef = ref(database, 'users');
     const gradeQuery = query(usersRef, orderByChild('grade'), equalTo(grade));
     
@@ -55,17 +63,25 @@ export const getStudentsByGrade = async (grade: number) => {
     const students: Student[] = [];
     
     if (snapshot.exists()) {
+        console.log('getStudentsByGrade: Raw users data:', snapshot.val());
         snapshot.forEach((childSnapshot) => {
             const student = childSnapshot.val();
+            console.log('getStudentsByGrade: Processing user:', childSnapshot.key, student);
+            
             if (student.role === 'student') {
                 students.push({
                     id: childSnapshot.key!,
-                    ...student
+                    name: student.name,
+                    email: student.email,
+                    grade: student.grade
                 });
             }
         });
+    } else {
+        console.log('getStudentsByGrade: No users found for grade', grade);
     }
     
+    console.log('getStudentsByGrade: Returning students:', students);
     return students;
 };
 
@@ -94,6 +110,7 @@ export const updateMark = async (markId: string, updates: Partial<Mark>) => {
 };
 
 export const getStudentMarks = async (studentId: string) => {
+    console.log('getStudentMarks: Fetching marks for student', studentId);
     const marksRef = ref(database, 'marks');
     const studentMarksQuery = query(marksRef, orderByChild('studentId'), equalTo(studentId));
     
@@ -101,35 +118,59 @@ export const getStudentMarks = async (studentId: string) => {
     const marks: Mark[] = [];
     
     if (snapshot.exists()) {
+        console.log('getStudentMarks: Raw marks data:', snapshot.val());
         snapshot.forEach((childSnapshot) => {
-            marks.push({
-                id: childSnapshot.key!,
-                ...childSnapshot.val()
-            });
+            const key = childSnapshot.key;
+            const val = childSnapshot.val();
+            console.log('getStudentMarks: Processing mark:', key, val);
+            
+            if (key && val) {
+                marks.push({
+                    id: key,
+                    ...val
+                });
+            } else {
+                console.log('getStudentMarks: Invalid mark data:', { key, val });
+            }
         });
+    } else {
+        console.log('getStudentMarks: No marks found for student', studentId);
     }
     
-    return marks.sort((a, b) => b.timestamp - a.timestamp);
+    const sortedMarks = marks.sort((a, b) => b.timestamp - a.timestamp);
+    console.log('getStudentMarks: Returning sorted marks:', sortedMarks);
+    return sortedMarks;
 };
 
 // Subject Operations
 export const getSubjects = async (grade: number) => {
+    console.log('getSubjects: Fetching subjects for grade', grade);
     const subjectsRef = ref(database, 'subjects');
     const snapshot = await get(subjectsRef);
     
     const subjects: Subject[] = [];
     if (snapshot.exists()) {
+        console.log('getSubjects: Raw subjects data:', snapshot.val());
         snapshot.forEach((childSnapshot: DataSnapshot) => {
-            if (childSnapshot.key) {
+            const key = childSnapshot.key;
+            const val = childSnapshot.val();
+            console.log('getSubjects: Processing subject:', key, val);
+            
+            if (key && val && val.name) {
                 subjects.push({
-                    id: childSnapshot.key,
-                    name: childSnapshot.val().name,
+                    id: key,
+                    name: val.name,
                     grade
                 });
+            } else {
+                console.log('getSubjects: Invalid subject data:', { key, val });
             }
         });
+    } else {
+        console.log('getSubjects: No subjects found in database');
     }
     
+    console.log('getSubjects: Returning subjects:', subjects);
     return subjects;
 };
 

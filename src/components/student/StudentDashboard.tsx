@@ -16,16 +16,25 @@ const StudentDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
+                console.log('StudentDashboard: Starting data fetch');
+                console.log('StudentDashboard: Current user:', currentUser);
+                
                 if (currentUser?.grade) {
+                    console.log('StudentDashboard: Fetching marks and subjects for grade', currentUser.grade);
                     const [fetchedMarks, fetchedSubjects] = await Promise.all([
                         getStudentMarks(currentUser.uid),
                         getSubjects(currentUser.grade)
                     ]);
+                    console.log('StudentDashboard: Fetched marks:', fetchedMarks);
+                    console.log('StudentDashboard: Fetched subjects:', fetchedSubjects);
+                    
                     setMarks(fetchedMarks);
                     setSubjects(fetchedSubjects);
+                } else {
+                    console.log('StudentDashboard: No grade found for current user');
                 }
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('StudentDashboard: Error fetching data:', error);
                 toast.error('Failed to load your marks');
             } finally {
                 setLoading(false);

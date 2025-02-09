@@ -24,6 +24,18 @@ interface StudentStatsProps {
 }
 
 const StudentStats: React.FC<StudentStatsProps> = ({ marks, subjects }) => {
+    // Handle empty marks case
+    if (marks.length === 0) {
+        return (
+            <div className="space-y-8 p-4 bg-white rounded-lg shadow">
+                <div className="text-center py-8">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Marks Available</h3>
+                    <p className="text-sm text-gray-500">Your academic statistics will appear here once marks are added.</p>
+                </div>
+            </div>
+        );
+    }
+
     // Prepare data for charts
     const getSubjectName = (subjectId: string) => {
         return subjects.find(subject => subject.id === subjectId)?.name || 'Unknown Subject';
@@ -41,14 +53,16 @@ const StudentStats: React.FC<StudentStatsProps> = ({ marks, subjects }) => {
 
     // Progress over time for line chart
     const lineChartData = marks.reduce((acc: any[], mark) => {
+        if (!mark?.subjectId) return acc; // Skip if subjectId is missing
         const date = new Date(mark.timestamp).toLocaleDateString();
+        const subjectName = getSubjectName(mark.subjectId);
         const existingEntry = acc.find(entry => entry.date === date);
         if (existingEntry) {
-            existingEntry[getSubjectName(mark.subjectId)] = mark.score;
+            existingEntry[subjectName] = mark.score;
         } else {
             acc.push({
                 date,
-                [getSubjectName(mark.subjectId)]: mark.score
+                [subjectName]: mark.score
             });
         }
         return acc;
@@ -57,7 +71,9 @@ const StudentStats: React.FC<StudentStatsProps> = ({ marks, subjects }) => {
     // Average scores by subject for bar chart
     const barChartData = subjects.map(subject => {
         const subjectMarks = marks.filter(mark => mark.subjectId === subject.id);
-        const average = subjectMarks.reduce((sum, mark) => sum + mark.score, 0) / subjectMarks.length;
+        const average = subjectMarks.length > 0 
+            ? subjectMarks.reduce((sum, mark) => sum + mark.score, 0) / subjectMarks.length 
+            : 0;
         return {
             subject: subject.name,
             average: Math.round(average * 10) / 10

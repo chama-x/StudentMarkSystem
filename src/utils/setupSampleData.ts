@@ -1,16 +1,16 @@
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser, signInWithEmailAndPassword } from 'firebase/auth';
 import { ref, set, remove, get } from 'firebase/database';
 import { auth, database } from '../firebase';
 import { SUBJECTS } from '../constants/subjects';
-import { FirebaseError } from 'firebase/app';
+import { toast } from 'react-hot-toast';
 
-interface SampleStudent {
+export interface SampleStudent {
     email: string;
     name: string;
     grade: number;
 }
 
-const sampleStudents: SampleStudent[] = [
+export const sampleStudents: SampleStudent[] = [
     // Grade 1 Students (5 students)
     { email: 'kasun@school.com', name: 'Kasun Tharaka', grade: 1 },
     { email: 'amal@school.com', name: 'Amal Perera', grade: 1 },
@@ -41,7 +41,7 @@ const sampleStudents: SampleStudent[] = [
     { email: 'grade8@school.com', name: 'Grade Eight Student', grade: 8 }
 ];
 
-const generateSampleMarks = (studentId: string, teacherId: string, grade: number) => {
+export const generateSampleMarks = (studentId: string, teacherId: string, grade: number) => {
     const marks = [];
     const now = Date.now();
     
@@ -79,6 +79,16 @@ export const setupSampleData = async (teacherId: string) => {
         for (const student of sampleStudents) {
             const password = student.name.split(' ')[0] + '@123'; // FirstName@123
             try {
+                // Try to sign in first to check if account exists
+                try {
+                    const userCredential = await signInWithEmailAndPassword(auth, student.email, password);
+                    // If sign in successful, delete the existing account
+                    await deleteUser(userCredential.user);
+                } catch {
+                    // If sign in fails, account doesn't exist, which is fine
+                }
+
+                // Create new account
                 const userCredential = await createUserWithEmailAndPassword(auth, student.email, password);
                 const uid = userCredential.user.uid;
                 
@@ -86,7 +96,7 @@ export const setupSampleData = async (teacherId: string) => {
                 await set(ref(database, `users/${uid}`), {
                     uid,
                     email: student.email,
-                    name: student.name,
+                    name: student.name.split(' ')[0].toLowerCase(),
                     role: 'student',
                     grade: student.grade
                 });
@@ -99,18 +109,17 @@ export const setupSampleData = async (teacherId: string) => {
                 }
                 
                 console.log(`Created account for ${student.name} (${student.email}) with password: ${password}`);
+                toast.success(`Created account for ${student.name}`);
             } catch (error) {
-                if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
-                    console.log(`Account already exists for ${student.email}`);
-                } else {
-                    console.error(`Error creating account for ${student.email}:`, error);
-                }
+                console.error(`Error creating account for ${student.email}:`, error);
+                toast.error(`Failed to create account for ${student.email}`);
             }
         }
         
-        console.log('Sample data setup completed!');
+        toast.success('Sample data setup completed!');
     } catch (error) {
         console.error('Error setting up sample data:', error);
+        toast.error('Failed to set up sample data');
         throw error;
     }
 };

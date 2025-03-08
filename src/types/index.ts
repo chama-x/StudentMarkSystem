@@ -24,6 +24,8 @@ export interface Mark {
     comment?: string;
     teacherId: string;
     timestamp: number;
+    year: number;
+    term: Term;
 }
 
 export interface Student {
@@ -43,6 +45,11 @@ export interface Teacher {
 export type ViewType = 'term-wise' | 'subject-wise';
 
 export type Term = 'Term 1' | 'Term 2' | 'Term 3';
+
+export interface AcademicTerm {
+    year: number;
+    term: Term;
+}
 
 export interface MarkWithTerm extends Mark {
     term: Term;

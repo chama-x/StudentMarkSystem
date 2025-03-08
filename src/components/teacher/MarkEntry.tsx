@@ -9,16 +9,29 @@ interface MarkEntryProps {
     grade: number;
 }
 
+const getGradeFromScore = (score: number): string => {
+    if (score >= 75) return 'A';
+    if (score >= 65) return 'B';
+    if (score >= 55) return 'C';
+    if (score >= 35) return 'S';
+    return 'F';
+};
+
 const MarkEntry = ({ student, grade }: MarkEntryProps) => {
     const { currentUser } = useAuth();
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedSubject, setSelectedSubject] = useState<string>('');
     const [score, setScore] = useState<string>('');
     const [comment, setComment] = useState<string>('');
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [selectedTerm, setSelectedTerm] = useState<Term>('Term 1');
     const [loading, setLoading] = useState(false);
     const [existingMarks, setExistingMarks] = useState<Mark[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [viewType, setViewType] = useState<ViewType>('term-wise');
+
+    // Generate array of years (current year and 2 years back)
+    const availableYears = Array.from({ length: 3 }, (_, i) => selectedYear - i);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -64,26 +77,26 @@ const MarkEntry = ({ student, grade }: MarkEntryProps) => {
             setSubmitting(true);
             
             const existingMark = existingMarks.find(
-                mark => mark.subjectId === selectedSubject
+                mark => mark.subjectId === selectedSubject && determineTermFromDate(mark.timestamp) === selectedTerm
             );
 
+            const markData = {
+                studentId: student.id,
+                subjectId: selectedSubject,
+                grade,
+                score: scoreNum,
+                comment,
+                teacherId: currentUser.uid,
+                timestamp: Date.now(),
+                year: selectedYear,
+                term: selectedTerm
+            };
+
             if (existingMark) {
-                await updateMark(existingMark.id, {
-                    score: scoreNum,
-                    comment,
-                    timestamp: Date.now()
-                });
+                await updateMark(existingMark.id, markData);
                 toast.success('Mark updated successfully');
             } else {
-                await addMark({
-                    studentId: student.id,
-                    subjectId: selectedSubject,
-                    grade,
-                    score: scoreNum,
-                    comment,
-                    teacherId: currentUser.uid,
-                    timestamp: Date.now()
-                });
+                await addMark(markData);
                 toast.success('Mark added successfully');
             }
 
@@ -269,86 +282,109 @@ const MarkEntry = ({ student, grade }: MarkEntryProps) => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="year" className="block text-sm font-medium text-gray-700">
+                        Academic Year
+                    </label>
+                    <select
+                        id="year"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        required
+                    >
+                        {availableYears.map((year) => (
+                            <option key={year} value={year}>
+                                {year}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label htmlFor="term" className="block text-sm font-medium text-gray-700">
+                        Term
+                    </label>
+                    <select
+                        id="term"
+                        value={selectedTerm}
+                        onChange={(e) => setSelectedTerm(e.target.value as Term)}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        required
+                    >
+                        <option value="Term 1">Term 1</option>
+                        <option value="Term 2">Term 2</option>
+                        <option value="Term 3">Term 3</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700">
                         Subject
                     </label>
-                    <div className="relative rounded-md shadow-sm">
-                        <select
-                            id="subject"
-                            value={selectedSubject}
-                            onChange={(e) => {
-                                setSelectedSubject(e.target.value);
-                                const existingMark = existingMarks.find(
-                                    mark => mark.subjectId === e.target.value
-                                );
-                                if (existingMark) {
-                                    setScore(existingMark.score.toString());
-                                    setComment(existingMark.comment || '');
-                                } else {
-                                    setScore('');
-                                    setComment('');
-                                }
-                            }}
-                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-200"
-                            required
-                        >
-                            <option value="">Select a subject</option>
-                            {subjects.map((subject) => (
-                                <option key={subject.id} value={subject.id}>
-                                    {subject.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <select
+                        id="subject"
+                        value={selectedSubject}
+                        onChange={(e) => {
+                            setSelectedSubject(e.target.value);
+                            const existingMark = existingMarks.find(
+                                mark => mark.subjectId === e.target.value && determineTermFromDate(mark.timestamp) === selectedTerm
+                            );
+                            if (existingMark) {
+                                setScore(existingMark.score.toString());
+                                setComment(existingMark.comment || '');
+                            } else {
+                                setScore('');
+                                setComment('');
+                            }
+                        }}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        required
+                    >
+                        <option value="">Select a subject</option>
+                        {subjects.map((subject) => (
+                            <option key={subject.id} value={subject.id}>
+                                {subject.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>
-                    <label htmlFor="score" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="score" className="block text-sm font-medium text-gray-700">
                         Score (0-100)
                     </label>
-                    <div className="relative rounded-md shadow-sm">
-                        <input
-                            type="number"
-                            id="score"
-                            min="0"
-                            max="100"
-                            value={score}
-                            onChange={(e) => setScore(e.target.value)}
-                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-200"
-                            required
-                        />
-                    </div>
+                    <input
+                        type="number"
+                        id="score"
+                        min="0"
+                        max="100"
+                        value={score}
+                        onChange={(e) => setScore(e.target.value)}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                    />
                 </div>
 
                 <div>
-                    <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="comment" className="block text-sm font-medium text-gray-700">
                         Comment (Optional)
                     </label>
-                    <div className="relative rounded-md shadow-sm">
-                        <textarea
-                            id="comment"
-                            rows={3}
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md transition-colors duration-200"
-                        />
-                    </div>
+                    <textarea
+                        id="comment"
+                        rows={3}
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    />
                 </div>
 
                 <div>
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
-                        {submitting ? (
-                            <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Saving...
-                            </>
-                        ) : (
-                            'Save Mark'
-                        )}
+                        {submitting ? 'Saving...' : 'Save Mark'}
                     </button>
                 </div>
             </form>

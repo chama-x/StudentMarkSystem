@@ -7,7 +7,9 @@ import {
     User as FirebaseUser,
     UserCredential,
     setPersistence,
-    browserLocalPersistence
+    browserLocalPersistence,
+    initializeAuth,
+    indexedDBLocalPersistence
 } from 'firebase/auth';
 import { createUser, getUser } from '../services/realtimeDatabase';
 import { User, UserRole } from '../types';
@@ -36,9 +38,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // Initialize persistence when the provider mounts
+    useEffect(() => {
+        const initAuth = async () => {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                console.log('Firebase Auth persistence initialized');
+            } catch (error) {
+                console.error('Error setting auth persistence:', error);
+            }
+        };
+        initAuth();
+    }, []);
+
     const signup = async (email: string, password: string, role: UserRole, name: string, grade?: number) => {
         try {
-            await setPersistence(auth, browserLocalPersistence);
             const { user } = await createUserWithEmailAndPassword(auth, email, password);
             
             const userData: User = {
@@ -60,7 +74,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const login = async (email: string, password: string) => {
         try {
-            await setPersistence(auth, browserLocalPersistence);
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             return userCredential;
         } catch (error) {
@@ -81,15 +94,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     useEffect(() => {
-        setLoading(true);
-        
+        console.log('Setting up auth state listener');
         const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
             try {
                 if (user) {
+                    console.log('User authenticated:', user.email);
                     const userData = await getUser(user.uid);
                     if (userData) {
+                        console.log('User data found:', userData);
                         setCurrentUser(userData as User);
                     } else {
+                        console.log('Creating basic user data');
                         const basicUserData: User = {
                             uid: user.uid,
                             email: user.email!,
@@ -100,6 +115,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         setCurrentUser(basicUserData);
                     }
                 } else {
+                    console.log('No user authenticated');
                     setCurrentUser(null);
                 }
             } catch (error) {
@@ -111,7 +127,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        return () => unsubscribe();
+        return () => {
+            console.log('Cleaning up auth state listener');
+            unsubscribe();
+        };
     }, []);
 
     const value = {

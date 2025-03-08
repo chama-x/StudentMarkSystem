@@ -7,6 +7,14 @@ interface GenerateReportProps {
     grade: number;
 }
 
+const getGradeFromScore = (score: number): string => {
+    if (score >= 75) return 'A';
+    if (score >= 65) return 'B';
+    if (score >= 55) return 'C';
+    if (score >= 35) return 'S';
+    return 'F';
+};
+
 const GenerateReport: React.FC<GenerateReportProps> = ({ grade }) => {
     const [loading, setLoading] = useState(false);
 
@@ -48,6 +56,39 @@ const GenerateReport: React.FC<GenerateReportProps> = ({ grade }) => {
                     .score-high { color: #059669; }
                     .score-medium { color: #b45309; }
                     .score-low { color: #dc2626; }
+                    .grade-legend {
+                        margin: 20px 0;
+                        padding: 15px;
+                        background-color: #f8f9fa;
+                        border-radius: 8px;
+                    }
+                    .grade-legend h4 {
+                        margin-top: 0;
+                        margin-bottom: 10px;
+                    }
+                    .grade-legend ul {
+                        list-style: none;
+                        padding: 0;
+                        margin: 0;
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 20px;
+                    }
+                    .grade-legend li {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .grade-badge {
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                    }
+                    .grade-A { background-color: #dcfce7; color: #166534; }
+                    .grade-B { background-color: #dbeafe; color: #1e40af; }
+                    .grade-C { background-color: #fef9c3; color: #854d0e; }
+                    .grade-S { background-color: #ffedd5; color: #9a3412; }
+                    .grade-F { background-color: #fee2e2; color: #991b1b; }
                 </style>
             </head>
             <body>
@@ -55,6 +96,17 @@ const GenerateReport: React.FC<GenerateReportProps> = ({ grade }) => {
                     <h1>Academic Performance Report</h1>
                     <h2>Grade ${grade}</h2>
                     <p>Generated on ${new Date().toLocaleDateString()}</p>
+                </div>
+
+                <div class="grade-legend">
+                    <h4>Grading Scale</h4>
+                    <ul>
+                        <li><span class="grade-badge grade-A">A</span> 75-100 Excellent</li>
+                        <li><span class="grade-badge grade-B">B</span> 65-74 Very Good</li>
+                        <li><span class="grade-badge grade-C">C</span> 55-64 Good</li>
+                        <li><span class="grade-badge grade-S">S</span> 35-54 Pass</li>
+                        <li><span class="grade-badge grade-F">F</span> 0-34 Fail</li>
+                    </ul>
                 </div>
                 
                 ${students.map(student => {
@@ -67,6 +119,9 @@ const GenerateReport: React.FC<GenerateReportProps> = ({ grade }) => {
                                     <tr>
                                         <th>Subject</th>
                                         <th>Score</th>
+                                        <th>Grade</th>
+                                        <th>Year</th>
+                                        <th>Term</th>
                                         <th>Comments</th>
                                         <th>Date</th>
                                     </tr>
@@ -75,12 +130,16 @@ const GenerateReport: React.FC<GenerateReportProps> = ({ grade }) => {
                                     ${subjects.map(subject => {
                                         const mark = studentMarks.find(m => m.subjectId === subject.id);
                                         if (!mark) return '';
+                                        const letterGrade = getGradeFromScore(mark.score);
                                         const scoreClass = mark.score >= 75 ? 'score-high' : 
-                                                         mark.score >= 50 ? 'score-medium' : 'score-low';
+                                                         mark.score >= 55 ? 'score-medium' : 'score-low';
                                         return `
                                             <tr>
                                                 <td>${subject.name}</td>
                                                 <td class="${scoreClass}">${mark.score}</td>
+                                                <td><span class="grade-badge grade-${letterGrade}">${letterGrade}</span></td>
+                                                <td>${mark.year}</td>
+                                                <td>${mark.term}</td>
                                                 <td>${mark.comment || '-'}</td>
                                                 <td>${new Date(mark.timestamp).toLocaleDateString()}</td>
                                             </tr>

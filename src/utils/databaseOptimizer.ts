@@ -1,6 +1,6 @@
 import { ref, get, update } from 'firebase/database';
 import { database } from '../firebase';
-import { Mark, DatabaseUser } from '../types';
+import { Mark, User } from '../types';
 
 interface OptimizationResults {
     duplicatesRemoved: number;
@@ -10,7 +10,7 @@ interface OptimizationResults {
 }
 
 interface DatabaseUpdates {
-    [key: string]: string | number | null | boolean | DatabaseUser | Mark;
+    [key: string]: string | number | null | boolean | User | Mark;
 }
 
 export const optimizeDatabase = async (): Promise<OptimizationResults> => {
@@ -45,7 +45,7 @@ export const optimizeDatabase = async (): Promise<OptimizationResults> => {
 
         // First pass: Process users and find duplicates
         for (const [userId, user] of Object.entries(users)) {
-            const userData = user as DatabaseUser;
+            const userData = user as User;
 
             if (userData.role === 'student') {
                 if (!userData.email) {

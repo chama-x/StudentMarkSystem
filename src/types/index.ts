@@ -1,12 +1,21 @@
 export type UserRole = 'student' | 'teacher';
 
+export interface DatabaseUser {
+    uid: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    grade?: number;
+    subjects?: string[];
+}
+
 export interface User {
     uid: string;
     email: string;
     role: UserRole;
     name: string;
-    grade?: number; // Only for students
-    subjects?: string[]; // Only for teachers
+    grade?: number;
+    subjects?: string[];
 }
 
 export interface Subject {
@@ -39,7 +48,7 @@ export interface Teacher {
     id: string;
     name: string;
     email: string;
-    subjects: string[]; // Array of subject IDs they teach
+    subjects: string[];
 }
 
 export type ViewType = 'term-wise' | 'subject-wise';

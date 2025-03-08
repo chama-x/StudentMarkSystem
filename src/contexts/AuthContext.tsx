@@ -7,9 +7,7 @@ import {
     User as FirebaseUser,
     UserCredential,
     setPersistence,
-    browserLocalPersistence,
-    initializeAuth,
-    indexedDBLocalPersistence
+    browserLocalPersistence
 } from 'firebase/auth';
 import { createUser, getUser } from '../services/realtimeDatabase';
 import { User, UserRole } from '../types';

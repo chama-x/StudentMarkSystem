@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, database } from '../../firebase';
-import { createUser, updateUser, getUser } from '../../services/realtimeDatabase';
+import { createUser } from '../../services/realtimeDatabase';
 import { toast } from 'react-hot-toast';
 import { GRADES } from '../../constants/subjects';
 import { ref, get, remove } from 'firebase/database';
-import { Student } from '../../types';
+import { Student, User, UserRole } from '../../types';
 
 interface StudentFormData {
     name: string;
@@ -56,47 +56,28 @@ const StudentManagement = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-
         try {
-            // Generate a password based on student's name
-            const password = `${formData.name.split(' ')[0]}@123`;
+            const userCredential = await createUserWithEmailAndPassword(
+                auth,
+                formData.email,
+                'Student@123' // Default password
+            );
 
-            // Create Firebase auth account
-            const userCredential = await createUserWithEmailAndPassword(auth, formData.email, password);
-
-            // Create user data in database
-            const newStudent = {
+            const newStudent: User = {
                 uid: userCredential.user.uid,
                 email: formData.email,
                 name: formData.name,
-                role: 'student',
+                role: 'student' as UserRole,
                 grade: formData.grade
             };
 
             await createUser(userCredential.user.uid, newStudent);
-
-            // Update local state
-            setStudents(prevStudents => [...prevStudents, {
-                id: userCredential.user.uid,
-                name: formData.name,
-                email: formData.email,
-                grade: formData.grade
-            }].sort((a, b) => a.grade - b.grade || a.name.localeCompare(b.name)));
-
             toast.success('Student added successfully');
-            toast.success(`Password: ${password}`);
             setIsModalOpen(false);
             setFormData({ name: '', email: '', grade: 1 });
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error adding student:', error);
-            if (error.code === 'auth/email-already-in-use') {
-                toast.error('Email is already registered');
-            } else {
-                toast.error('Failed to add student');
-            }
-        } finally {
-            setLoading(false);
+            toast.error('Failed to add student');
         }
     };
 

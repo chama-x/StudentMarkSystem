@@ -9,14 +9,6 @@ interface MarkEntryProps {
     grade: number;
 }
 
-const getGradeFromScore = (score: number): string => {
-    if (score >= 75) return 'A';
-    if (score >= 65) return 'B';
-    if (score >= 55) return 'C';
-    if (score >= 35) return 'S';
-    return 'F';
-};
-
 const MarkEntry = ({ student, grade }: MarkEntryProps) => {
     const { currentUser } = useAuth();
     const [subjects, setSubjects] = useState<Subject[]>([]);

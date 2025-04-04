@@ -10,7 +10,7 @@ export const SUBJECTS = [
     'Tamil'
 ] as const;
 
-export const GRADES = Array.from({ length: 13 }, (_, i) => i + 1);
+export const GRADES = Array.from({ length: 11 }, (_, i) => i + 1);
 
 export type SubjectName = typeof SUBJECTS[number];
 

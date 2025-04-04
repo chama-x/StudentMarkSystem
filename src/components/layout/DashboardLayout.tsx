@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import SchoolLogo from '../common/SchoolLogo';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -32,7 +33,19 @@ const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
-                            <h1 className="text-xl md:text-2xl font-bold text-indigo-600">{title}</h1>
+                            {/* School Logo and Name */}
+                            <div className="flex items-center mr-4">
+                                <SchoolLogo size="small" />
+                                <div className="hidden sm:flex flex-col ml-2">
+                                    <span className="text-sm font-semibold text-gray-900">Mo/Kukurampola K.V.</span>
+                                    <span className="text-xs text-gray-500">Student Mark System</span>
+                                </div>
+                            </div>
+                            
+                            {/* Dashboard Title */}
+                            <div className="pl-4 border-l border-gray-200">
+                                <h1 className="text-xl md:text-2xl font-bold text-indigo-600">{title}</h1>
+                            </div>
                         </div>
 
                         {/* Desktop Menu */}
@@ -130,9 +143,15 @@ const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
             {/* Footer */}
             <footer className="bg-white border-t border-gray-200 mt-auto">
                 <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-                    <p className="text-center text-sm text-gray-500">
-                        © {new Date().getFullYear()} Student Mark Management System. All rights reserved.
-                    </p>
+                    <div className="flex flex-col sm:flex-row justify-between items-center">
+                        <div className="flex items-center mb-2 sm:mb-0">
+                            <SchoolLogo size="small" />
+                            <span className="ml-2 text-sm text-gray-600">Mo/Kukurampola K.V.</span>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                            © {new Date().getFullYear()} Student Mark Management System. All rights reserved.
+                        </p>
+                    </div>
                 </div>
             </footer>
         </div>

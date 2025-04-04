@@ -48,6 +48,17 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Login Background Styling */
+.login-background {
+  position: relative;
+  isolation: isolate;
+}
+
+.login-background .blur-backdrop {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 /* Animated Background */
 .teacher-dashboard-bg {
   position: relative;

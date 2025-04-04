@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import React, { lazy, useEffect, Suspense, useState } from 'react';
+import React, { lazy, useEffect, Suspense } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { initializeDatabase } from './utils/initializeDatabase';
 import './App.css';

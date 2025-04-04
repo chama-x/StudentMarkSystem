@@ -55,11 +55,16 @@ const StudentManagement = () => {
                 .map(entry => {
                     const id = entry[0];
                     const user = entry[1] as DatabaseUser;
+                    // Ensure grade is a number
+                    const grade = user.grade !== undefined ? Number(user.grade) : 1;
+                    
+                    console.log(`Student ${user.name} has grade: ${grade} (original: ${user.grade}, type: ${typeof user.grade})`);
+                    
                     return {
                         id,
                         name: user.name,
                         email: user.email,
-                        grade: user.grade
+                        grade: grade // Ensure it's a number
                     };
                 })
                 .sort((a, b) => a.grade - b.grade || a.name.localeCompare(b.name));
@@ -78,6 +83,9 @@ const StudentManagement = () => {
         setAdding(true);
         
         try {
+            // Ensure grade is a number
+            const gradeNumber = Number(formData.grade);
+            
             // Generate a unique ID for the student
             const newStudentRef = push(ref(database, 'users'));
             const newStudentId = newStudentRef.key!;
@@ -88,8 +96,10 @@ const StudentManagement = () => {
                 email: formData.email,
                 name: formData.name,
                 role: 'student' as UserRole,
-                grade: formData.grade
+                grade: gradeNumber // Ensure it's a number
             };
+
+            console.log('Adding student with grade:', gradeNumber);
 
             // Save the student without changing auth state
             await set(newStudentRef, newStudent);
@@ -107,7 +117,7 @@ const StudentManagement = () => {
                 id: newStudentId,
                 name: formData.name,
                 email: formData.email,
-                grade: formData.grade
+                grade: gradeNumber // Ensure it's a number
             }]);
             
             toast.success('Student added successfully');
@@ -119,7 +129,8 @@ const StudentManagement = () => {
                 password: 'Student@123' 
             });
             
-            await fetchStudents(); // Refresh the list
+            // Force a complete refresh of the list to ensure all data is properly loaded
+            await fetchStudents();
         } catch (error) {
             console.error('Error adding student:', error);
             toast.error('Failed to add student');

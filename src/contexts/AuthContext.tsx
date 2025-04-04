@@ -83,6 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         try {
             await signOut(auth);
+            localStorage.removeItem('teacherSession');
             toast.success('Logged out successfully');
         } catch (error) {
             console.error('Logout error:', error);
@@ -98,10 +99,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (user) {
                     console.log('User authenticated:', user.email);
                     const userData = await getUser(user.uid);
+                    
                     if (userData) {
                         console.log('User data found:', userData);
                         setCurrentUser(userData as User);
                     } else {
+                        // Check if this is a teacherSession in localStorage
+                        const teacherSession = localStorage.getItem('teacherSession');
+                        
+                        if (teacherSession) {
+                            // This means we're in a teacher session but the auth state changed
+                            // (likely due to student creation) - we should handle this specially
+                            console.log('Teacher session detected, maintaining session');
+                            
+                            // Try to get the teacher user
+                            const teacherData = JSON.parse(teacherSession);
+                            const teacherUser = await getUser(teacherData.uid);
+                            
+                            if (teacherUser) {
+                                setCurrentUser(teacherUser as User);
+                                // Re-authenticate as the teacher silently
+                                // This is just for the auth state, without affecting the UI
+                                try {
+                                    await signInWithEmailAndPassword(auth, teacherData.email, teacherData.cachedAuth);
+                                } catch (error) {
+                                    // If we can't re-auth, we'll just keep the teacher data anyway
+                                    console.warn('Failed to re-authenticate teacher', error);
+                                }
+                                return;
+                            }
+                        }
+                        
+                        // If no teacher session or teacher not found, fall back to creating basic user data
                         console.log('Creating basic user data');
                         const basicUserData: User = {
                             uid: user.uid,
@@ -114,6 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     }
                 } else {
                     console.log('No user authenticated');
+                    localStorage.removeItem('teacherSession');
                     setCurrentUser(null);
                 }
             } catch (error) {

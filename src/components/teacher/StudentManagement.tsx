@@ -1,27 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, database } from '../../firebase';
-import { createUser } from '../../services/realtimeDatabase';
+import { database } from '../../firebase';
 import { toast } from 'react-hot-toast';
 import { GRADES } from '../../constants/subjects';
-import { ref, get, remove } from 'firebase/database';
+import { ref, get, remove, push, set } from 'firebase/database';
 import { Student, User, UserRole } from '../../types';
 
 interface StudentFormData {
     name: string;
     email: string;
     grade: number;
+    password: string;
+}
+
+interface DatabaseUser {
+    role: string;
+    name: string;
+    email: string;
+    grade: number;
+}
+
+interface DatabaseMark {
+    studentId: string;
 }
 
 const StudentManagement = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [students, setStudents] = useState<Student[]>([]);
     const [loading, setLoading] = useState(true);
+    const [adding, setAdding] = useState(false);
     const [deletingStudents, setDeletingStudents] = useState<Set<string>>(new Set());
     const [formData, setFormData] = useState<StudentFormData>({
         name: '',
         email: '',
-        grade: 1
+        grade: 1,
+        password: 'Student@123' // Default password with option to change
     });
 
     useEffect(() => {
@@ -36,13 +48,20 @@ const StudentManagement = () => {
             const usersData = snapshot.val() || {};
             
             const studentsList = Object.entries(usersData)
-                .filter(([_, user]: [string, any]) => user.role === 'student')
-                .map(([id, user]: [string, any]) => ({
-                    id,
-                    name: user.name,
-                    email: user.email,
-                    grade: user.grade
-                }))
+                .filter(entry => {
+                    const user = entry[1] as DatabaseUser;
+                    return user.role === 'student';
+                })
+                .map(entry => {
+                    const id = entry[0];
+                    const user = entry[1] as DatabaseUser;
+                    return {
+                        id,
+                        name: user.name,
+                        email: user.email,
+                        grade: user.grade
+                    };
+                })
                 .sort((a, b) => a.grade - b.grade || a.name.localeCompare(b.name));
 
             setStudents(studentsList);
@@ -56,28 +75,56 @@ const StudentManagement = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setAdding(true);
+        
         try {
-            const userCredential = await createUserWithEmailAndPassword(
-                auth,
-                formData.email,
-                'Student@123' // Default password
-            );
-
+            // Generate a unique ID for the student
+            const newStudentRef = push(ref(database, 'users'));
+            const newStudentId = newStudentRef.key!;
+            
+            // Create the new student object
             const newStudent: User = {
-                uid: userCredential.user.uid,
+                uid: newStudentId,
                 email: formData.email,
                 name: formData.name,
                 role: 'student' as UserRole,
                 grade: formData.grade
             };
 
-            await createUser(userCredential.user.uid, newStudent);
+            // Save the student without changing auth state
+            await set(newStudentRef, newStudent);
+            
+            // Also save to pendingRegistrations collection for later completion
+            const pendingRef = ref(database, `pendingRegistrations/${newStudentId}`);
+            await set(pendingRef, {
+                email: formData.email,
+                password: formData.password,
+                timestamp: Date.now()
+            });
+            
+            // Update local state
+            setStudents(prev => [...prev, {
+                id: newStudentId,
+                name: formData.name,
+                email: formData.email,
+                grade: formData.grade
+            }]);
+            
             toast.success('Student added successfully');
             setIsModalOpen(false);
-            setFormData({ name: '', email: '', grade: 1 });
+            setFormData({ 
+                name: '', 
+                email: '', 
+                grade: 1, 
+                password: 'Student@123' 
+            });
+            
+            await fetchStudents(); // Refresh the list
         } catch (error) {
             console.error('Error adding student:', error);
             toast.error('Failed to add student');
+        } finally {
+            setAdding(false);
         }
     };
 
@@ -99,8 +146,14 @@ const StudentManagement = () => {
             
             // Delete marks for this student
             const deletePromises = Object.entries(marks)
-                .filter(([_, mark]) => (mark as any).studentId === studentId)
-                .map(([markId]) => remove(ref(database, `marks/${markId}`)));
+                .filter(entry => {
+                    const mark = entry[1] as DatabaseMark;
+                    return mark.studentId === studentId;
+                })
+                .map(entry => {
+                    const markId = entry[0];
+                    return remove(ref(database, `marks/${markId}`));
+                });
 
             await Promise.all(deletePromises);
 
@@ -248,6 +301,23 @@ const StudentManagement = () => {
                                     </select>
                                 </div>
 
+                                <div>
+                                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                                        Password
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        required
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Default password is Student@123. You can change it if needed.
+                                    </p>
+                                </div>
+
                                 <div className="flex justify-end space-x-3 mt-6">
                                     <button
                                         type="button"
@@ -258,10 +328,10 @@ const StudentManagement = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={loading}
+                                        disabled={adding}
                                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                                     >
-                                        {loading ? 'Adding...' : 'Add Student'}
+                                        {adding ? 'Adding...' : 'Add Student'}
                                     </button>
                                 </div>
                             </form>

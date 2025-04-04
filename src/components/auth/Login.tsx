@@ -28,6 +28,12 @@ const Login = () => {
             if (userData.role === 'student') {
                 navigate('/student');
             } else if (userData.role === 'teacher') {
+                // Store teacher session data to handle auth during student creation
+                localStorage.setItem('teacherSession', JSON.stringify({
+                    uid: userData.uid,
+                    email: userData.email,
+                    cachedAuth: password // Store password temporarily for re-auth if needed
+                }));
                 navigate('/teacher');
             }
             

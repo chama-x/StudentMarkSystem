@@ -48,12 +48,9 @@ export default defineConfig({
     },
     // Improve CSP compatibility
     sourcemap: true,
-    minify: 'terser',
-    terserOptions: {
-      format: {
-        comments: false
-      }
-    }
+    // Use esbuild for minification instead of terser
+    minify: 'esbuild',
+    target: 'es2015'
   },
   // This is important: set the base URL to '/' for proper asset loading
   base: '/',

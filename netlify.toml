@@ -1,9 +1,10 @@
 [build]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = "dist"
   
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--production=false"
 
 # Redirects for SPA routing
 [[redirects]]
@@ -30,4 +31,4 @@
 [[headers]]
   for = "*.mjs"
   [headers.values]
-    Content-Type = "application/javascript" 
+    Content-Type = "application/javascript"

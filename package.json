@@ -37,6 +37,7 @@
     "firebase-admin": "^13.4.0",
     "globals": "^15.14.0",
     "netlify-cli": "^17.22.0",
+    "terser": "^5.39.2",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.22.0",
     "vite": "^6.1.0"

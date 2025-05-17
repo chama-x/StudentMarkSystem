@@ -1,0 +1,32 @@
+{"users": [
+{
+  "localId": "ZT9YbeWNYSU4bK0sG7apwShM3f82",
+  "email": "admin@school.com",
+  "emailVerified": false,
+  "passwordHash": "D/mlAftxoVh0KlZ0qTAfiOJeQGLbvsq7Csf3W3IlUbRl/gJB3rkLqZ42hSR65CjiAP9qbxkKVmOt7F1sPB0PBA==",
+  "salt": "EwxIOOY5Of5zSw==",
+  "lastSignedInAt": "1738590962634",
+  "createdAt": "1738352652148",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "eGlin9cvuqaR0hx235Ny8NycTJ43",
+  "email": "student@school.com",
+  "emailVerified": false,
+  "passwordHash": "MB4rk8zxTscyarHNATCNazAzqDIgWb5O01aKH0DXxpl6Kd2DSBNGSgxhlpDSleKkBuWHV00iViGvBEhFFTeLfA==",
+  "salt": "GDGncLWcK/Z3Bg==",
+  "lastSignedInAt": "1738590787334",
+  "createdAt": "1738352792086",
+  "providerUserInfo": []
+},
+{
+  "localId": "uPTFlKUbZPN6iYzMteMEDbLY39P2",
+  "email": "teacher@school.com",
+  "emailVerified": false,
+  "passwordHash": "RhyAuzWt808MpCvD6UXDgHX0boeakyZGGQSortAU7J5s03bzGtaM/dy2OcpqRXCKul0SsRe6Jg5XONXvwVvj5g==",
+  "salt": "w4Uo94ISWxVg9Q==",
+  "lastSignedInAt": "1738590943057",
+  "createdAt": "1738352790412",
+  "providerUserInfo": []
+}]}

@@ -5,7 +5,10 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(), 
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -22,6 +25,9 @@ export default defineConfig({
         // Ensure consistent chunk naming
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
+            if (id.includes('firebase')) {
+              return 'firebase-vendor';
+            }
             return 'vendor';
           }
           if (id.includes('components/teacher')) {
@@ -33,10 +39,28 @@ export default defineConfig({
           if (id.includes('components/auth')) {
             return 'auth';
           }
-        }
+        },
+        // Ensure proper MIME types
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
+      }
+    },
+    // Improve CSP compatibility
+    sourcemap: true,
+    minify: 'terser',
+    terserOptions: {
+      format: {
+        comments: false
       }
     }
   },
   // This is important: set the base URL to '/' for proper asset loading
-  base: '/'
+  base: '/',
+  // Ensure proper MIME types
+  server: {
+    headers: {
+      'Content-Type': 'application/javascript',
+    },
+  }
 })

@@ -1,1 +1,6 @@
-/* /index.html 200 
+# Redirect all requests to index.html for SPA routing
+/*    /index.html   200
+
+# Ensure JavaScript files are served with correct MIME type
+/*.js    /index.html   200!   Content-Type=application/javascript
+/*.mjs   /index.html   200!   Content-Type=application/javascript 

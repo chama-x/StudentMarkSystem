@@ -59,5 +59,15 @@ export default defineConfig({
     headers: {
       'Content-Type': 'application/javascript',
     },
+    // Increase HMR timeout to allow for more time during development
+    hmr: {
+      timeout: 5000,
+    },
+    // Open browser automatically
+    open: true,
+  },
+  // Clear the cache on startup to prevent stale modules
+  optimizeDeps: {
+    force: true
   }
 })

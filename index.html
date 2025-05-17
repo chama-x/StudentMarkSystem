@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mo/Kukurampola K.V. - Student Mark System</title>
+    <script>
+      console.log('HTML loaded, checking if JavaScript is executing');
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM fully loaded');
+        const rootElement = document.getElementById('root');
+        console.log('Root element status:', rootElement ? 'Found' : 'Not found');
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -12,6 +12,7 @@
     "marks": {
       ".read": "auth != null",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+      ".indexOn": ["studentId", "subjectId", "grade"],
       "$markId": {
         ".read": "auth != null",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
@@ -19,7 +20,8 @@
     },
     "subjects": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin')"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin')",
+      ".indexOn": ["grade", "name"]
     },
     "connection_test": {
       ".read": true,

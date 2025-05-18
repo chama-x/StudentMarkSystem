@@ -386,7 +386,31 @@ const AdvancedManagement = () => {
 
             // Apply all updates
             if (Object.keys(updates).length > 0) {
-                await update(ref(database), updates);
+                // Fix for PERMISSION_DENIED error:
+                // Cannot update a parent and child path in same update operation
+                // Split updates into two groups: parent deletions and field updates
+                const parentDeletions: DatabaseUpdates = {};
+                const fieldUpdates: DatabaseUpdates = {};
+                
+                // Process updates to avoid parent/child path conflicts
+                for (const path in updates) {
+                    // If we're deleting an entire mark or user (value is null)
+                    if (updates[path] === null) {
+                        parentDeletions[path] = null;
+                    } else {
+                        fieldUpdates[path] = updates[path];
+                    }
+                }
+                
+                // First apply complete deletions
+                if (Object.keys(parentDeletions).length > 0) {
+                    await update(ref(database), parentDeletions);
+                }
+                
+                // Then apply the field updates (now safe because parents are gone)
+                if (Object.keys(fieldUpdates).length > 0) {
+                    await update(ref(database), fieldUpdates);
+                }
             }
 
             // Log and show results

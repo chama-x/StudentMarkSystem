@@ -10,20 +10,55 @@ const Dashboard = () => {
     const [marks, setMarks] = useState<Mark[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                if (currentUser?.grade) {
-                    const [fetchedMarks, fetchedSubjects] = await Promise.all([
-                        getStudentMarks(currentUser.uid),
-                        getSubjects(currentUser.grade)
-                    ]);
-                    setMarks(fetchedMarks);
-                    setSubjects(fetchedSubjects);
+                console.log('Student Dashboard: Current user:', currentUser);
+                setLoading(true);
+                setError(null);
+                
+                if (!currentUser) {
+                    setError('No user data available');
+                    return;
+                }
+                
+                if (!currentUser.uid) {
+                    setError('User ID is missing');
+                    return;
+                }
+                
+                if (!currentUser.grade) {
+                    setError('Grade information is missing');
+                    console.error('Student is missing grade:', currentUser);
+                    return;
+                }
+                
+                console.log(`Fetching data for student: ${currentUser.name}, Grade: ${currentUser.grade}`);
+                
+                // Fetch marks and subjects in parallel
+                const [fetchedMarks, fetchedSubjects] = await Promise.all([
+                    getStudentMarks(currentUser.uid),
+                    getSubjects(currentUser.grade)
+                ]);
+                
+                console.log('Fetched marks:', fetchedMarks.length);
+                console.log('Fetched subjects:', fetchedSubjects.length);
+                
+                setMarks(fetchedMarks);
+                setSubjects(fetchedSubjects);
+                
+                if (fetchedMarks.length === 0) {
+                    console.log('No marks found for student');
+                }
+                
+                if (fetchedSubjects.length === 0) {
+                    console.log('No subjects found for grade', currentUser.grade);
                 }
             } catch (error) {
                 console.error('Error fetching data:', error);
+                setError('Failed to load your marks');
                 toast.error('Failed to load your marks');
             } finally {
                 setLoading(false);
@@ -42,10 +77,54 @@ const Dashboard = () => {
             </DashboardLayout>
         );
     }
+    
+    if (error) {
+        return (
+            <DashboardLayout title="Student Dashboard">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-red-600">Error: {error}</div>
+                </div>
+            </DashboardLayout>
+        );
+    }
+    
+    if (!currentUser?.grade) {
+        return (
+            <DashboardLayout title="Student Dashboard">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-yellow-600">
+                        Your grade information is missing. Please contact your teacher.
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    if (marks.length === 0) {
+        return (
+            <DashboardLayout title="Student Dashboard">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-gray-600">
+                        No marks available yet. Your teacher will add them soon.
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout title="Student Dashboard">
             <div className="px-4 py-5 sm:px-6 space-y-6">
+                {/* Student Info */}
+                <div className="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-100">
+                    <h3 className="text-lg font-medium text-blue-800">Your Information</h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                        <p><span className="font-medium">Name:</span> {currentUser.name}</p>
+                        <p><span className="font-medium">Grade:</span> {currentUser.grade}</p>
+                        <p><span className="font-medium">Email:</span> {currentUser.email}</p>
+                    </div>
+                </div>
+                
                 {/* Student Marks */}
                 <div className="mt-8 space-y-6">
                     <h2 className="text-xl font-semibold text-gray-900">Your Academic Progress</h2>

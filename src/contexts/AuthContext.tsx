@@ -9,10 +9,11 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'firebase/auth';
-import { createUser, getUser } from '../services/realtimeDatabase';
+import { createUser, getUser, updateUser } from '../services/realtimeDatabase';
 import { User, UserRole } from '../types';
-import { auth } from '../firebase';
+import { auth, database } from '../firebase';
 import { toast } from 'react-hot-toast';
+import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
 
 interface AuthContextType {
     currentUser: User | null;
@@ -102,6 +103,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     
                     if (userData) {
                         console.log('User data found:', userData);
+                        
+                        // Ensure student has a grade property
+                        if (userData.role === 'student' && !userData.grade) {
+                            console.log('Student user missing grade - fetching from database');
+                            try {
+                                // Try to find the user's grade from the database by checking marks
+                                const marksRef = ref(database, 'marks');
+                                const studentMarksQuery = query(marksRef, orderByChild('studentId'), equalTo(user.uid));
+                                const snapshot = await get(studentMarksQuery);
+                                
+                                if (snapshot.exists()) {
+                                    // Get the first mark and extract the grade
+                                    let grade: number | null = null;
+                                    snapshot.forEach((childSnapshot) => {
+                                        if (!grade) {
+                                            grade = childSnapshot.val().grade;
+                                        }
+                                    });
+                                    
+                                    if (grade) {
+                                        console.log(`Found grade ${grade} for student ${user.email} from marks`);
+                                        userData.grade = grade;
+                                        // Update the user record with the grade
+                                        await updateUser(user.uid, { grade });
+                                    } else {
+                                        // Default to grade 1 if no grade found from marks
+                                        userData.grade = 1;
+                                        await updateUser(user.uid, { grade: 1 });
+                                    }
+                                } else {
+                                    // Default to grade 1 if no marks found
+                                    userData.grade = 1;
+                                    await updateUser(user.uid, { grade: 1 });
+                                }
+                            } catch (error) {
+                                console.error('Error finding student grade:', error);
+                                // Set a default grade
+                                userData.grade = 1;
+                            }
+                        }
+                        
                         setCurrentUser(userData as User);
                     } else {
                         // Check if this is a teacherSession in localStorage
@@ -132,12 +174,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         
                         // If no teacher session or teacher not found, fall back to creating basic user data
                         console.log('Creating basic user data');
+                        
+                        // Try to determine if this is a student account by email pattern
+                        const isStudentEmail = user.email?.includes('student') || user.email?.includes('grade');
+                        const defaultRole: UserRole = isStudentEmail ? 'student' : 'teacher';
+                        
+                        // For students, try to extract grade from email or default to grade 1
+                        let grade = 1;
+                        if (defaultRole === 'student') {
+                            const gradeMatch = user.email?.match(/grade(\d+)/i);
+                            if (gradeMatch && gradeMatch[1]) {
+                                grade = parseInt(gradeMatch[1], 10);
+                            }
+                        }
+                        
                         const basicUserData: User = {
                             uid: user.uid,
                             email: user.email!,
-                            role: 'student',
-                            name: user.displayName || user.email!.split('@')[0]
+                            role: defaultRole,
+                            name: user.displayName || user.email!.split('@')[0],
+                            ...(defaultRole === 'student' ? { grade } : {})
                         };
+                        
                         await createUser(user.uid, basicUserData);
                         setCurrentUser(basicUserData);
                     }

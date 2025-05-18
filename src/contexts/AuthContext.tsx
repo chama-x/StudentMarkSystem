@@ -33,9 +33,13 @@ export const useAuth = () => {
     return context;
 };
 
+const LOCAL_STORAGE_USER_KEY = 'studentMarkSystem_user';
+const LOCAL_STORAGE_AUTH_KEY = 'studentMarkSystem_auth';
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
 
     // Initialize persistence when the provider mounts
     useEffect(() => {
@@ -48,6 +52,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
         };
         initAuth();
+    }, []);
+
+    // Initialize from localStorage on first load
+    useEffect(() => {
+        const initFromLocalStorage = () => {
+            try {
+                // Try to restore user from localStorage first
+                const savedUser = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+                if (savedUser) {
+                    const parsedUser = JSON.parse(savedUser);
+                    console.log('Restored user from localStorage:', parsedUser);
+                    setCurrentUser(parsedUser);
+                    setLoading(false);
+                }
+            } catch (error) {
+                console.error('Error restoring from localStorage:', error);
+            }
+        };
+        
+        initFromLocalStorage();
     }, []);
 
     const signup = async (email: string, password: string, role: UserRole, name: string, grade?: number) => {
@@ -63,6 +87,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
 
             await createUser(user.uid, userData);
+            
+            // Save to localStorage for persistence
+            localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(userData));
+            
             toast.success('Account created successfully!');
         } catch (error) {
             console.error('Signup error:', error);
@@ -74,6 +102,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (email: string, password: string) => {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            // Save credentials for potential future recovery
+            localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, JSON.stringify({
+                email,
+                lastLogin: new Date().toISOString()
+            }));
+            
             return userCredential;
         } catch (error) {
             console.error('Login error:', error);
@@ -85,6 +120,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
             await signOut(auth);
             localStorage.removeItem('teacherSession');
+            localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+            localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
             toast.success('Logged out successfully');
         } catch (error) {
             console.error('Logout error:', error);
@@ -95,8 +132,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         console.log('Setting up auth state listener');
+        let authChangeTimeout: number | null = null;
+        
         const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
             try {
+                // Clear any pending timeout
+                if (authChangeTimeout) {
+                    window.clearTimeout(authChangeTimeout);
+                    authChangeTimeout = null;
+                }
+                
+                setInitialAuthCheckComplete(true);
+                
                 if (user) {
                     console.log('User authenticated:', user.email);
                     const userData = await getUser(user.uid);
@@ -145,6 +192,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         }
                         
                         setCurrentUser(userData as User);
+                        
+                        // Save to localStorage for persistence
+                        localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(userData));
+                        console.log('User data saved to localStorage');
                     } else {
                         // Check if this is a teacherSession in localStorage
                         const teacherSession = localStorage.getItem('teacherSession');
@@ -160,6 +211,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                             
                             if (teacherUser) {
                                 setCurrentUser(teacherUser as User);
+                                localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(teacherUser));
+                                
                                 // Re-authenticate as the teacher silently
                                 // This is just for the auth state, without affecting the UI
                                 try {
@@ -198,10 +251,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         
                         await createUser(user.uid, basicUserData);
                         setCurrentUser(basicUserData);
+                        
+                        // Save to localStorage for persistence
+                        localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(basicUserData));
                     }
                 } else {
-                    console.log('No user authenticated');
+                    console.log('No user authenticated from Firebase');
+                    
+                    // Try to restore from localStorage if we just started the app
+                    if (!initialAuthCheckComplete) {
+                        const savedUser = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+                        const savedAuth = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+                        
+                        if (savedUser && savedAuth) {
+                            try {
+                                const userData = JSON.parse(savedUser);
+                                const authData = JSON.parse(savedAuth);
+                                
+                                // Only use if not too old (24 hours)
+                                const lastLogin = new Date(authData.lastLogin);
+                                const now = new Date();
+                                const hoursSinceLogin = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
+                                
+                                if (hoursSinceLogin < 24) {
+                                    console.log('Restoring user from localStorage (auth state lost but session valid)');
+                                    setCurrentUser(userData);
+                                    
+                                    // Try to silently re-login, but don't wait for it
+                                    authChangeTimeout = window.setTimeout(() => {
+                                        // Don't attempt to restore Firebase auth state since we don't have the password
+                                        console.log('Using cached user data without Firebase auth');
+                                    }, 500);
+                                    
+                                    return;
+                                } else {
+                                    console.log('Saved session too old, not restoring');
+                                }
+                            } catch (e) {
+                                console.error('Error parsing saved auth data', e);
+                            }
+                        }
+                    }
+                    
+                    // If we reach here, we couldn't restore the session
                     localStorage.removeItem('teacherSession');
+                    localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+                    localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
                     setCurrentUser(null);
                 }
             } catch (error) {
@@ -215,9 +310,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return () => {
             console.log('Cleaning up auth state listener');
+            if (authChangeTimeout) {
+                window.clearTimeout(authChangeTimeout);
+            }
             unsubscribe();
         };
-    }, []);
+    }, [initialAuthCheckComplete]);
 
     const value = {
         currentUser,

@@ -77,7 +77,7 @@ const Dashboard = () => {
 
     // Calculate overall average and best subject
     const calculateStatistics = (studentMarks: Mark[], allSubjects: Subject[]) => {
-        if (!studentMarks.length) {
+        if (studentMarks.length === 0) {
             setStats({
                 overallAverage: 0,
                 bestSubject: { name: 'No data available', score: 0 }
@@ -85,50 +85,61 @@ const Dashboard = () => {
             return;
         }
 
-        // Create a map to look up subject names by ID
-        const subjectMap = new Map<string, string>();
-        allSubjects.forEach(subject => {
-            subjectMap.set(subject.id, subject.name);
-        });
+        try {
+            // Create a map to look up subject names by ID
+            const subjectMap: Record<string, string> = {};
+            allSubjects.forEach(subject => {
+                subjectMap[subject.id] = subject.name;
+            });
 
-        // Get the latest mark for each subject
-        const latestMarksBySubject = new Map<string, Mark>();
-        
-        studentMarks.forEach(mark => {
-            const existingMark = latestMarksBySubject.get(mark.subjectId);
-            if (!existingMark || mark.timestamp > existingMark.timestamp) {
-                latestMarksBySubject.set(mark.subjectId, mark);
+            // Get the latest mark for each subject
+            const latestMarksBySubject: Record<string, Mark> = {};
+            
+            studentMarks.forEach(mark => {
+                const existingMark = latestMarksBySubject[mark.subjectId];
+                if (!existingMark || mark.timestamp > existingMark.timestamp) {
+                    latestMarksBySubject[mark.subjectId] = mark;
+                }
+            });
+
+            // Get array of latest marks
+            const latestMarks = Object.values(latestMarksBySubject);
+            
+            // Calculate average score
+            let totalScore = 0;
+            let markCount = 0;
+            let bestScore = 0;
+            let bestSubjectId = '';
+            
+            for (const mark of latestMarks) {
+                if (typeof mark.score === 'number') {
+                    totalScore += mark.score;
+                    markCount++;
+                    
+                    if (mark.score > bestScore) {
+                        bestScore = mark.score;
+                        bestSubjectId = mark.subjectId;
+                    }
+                }
             }
-        });
-
-        // Get array of latest marks
-        const latestMarks = Array.from(latestMarksBySubject.values());
-        
-        // Calculate average score
-        let totalScore = 0;
-        for (const mark of latestMarks) {
-            totalScore += mark.score;
+            
+            const averageScore = markCount > 0 ? totalScore / markCount : 0;
+            const bestSubjectName = bestSubjectId ? (subjectMap[bestSubjectId] || 'Unknown Subject') : 'No data available';
+            
+            setStats({
+                overallAverage: Math.round(averageScore * 10) / 10, // Round to 1 decimal place
+                bestSubject: { 
+                    name: bestSubjectName, 
+                    score: bestScore
+                }
+            });
+        } catch (error) {
+            console.error('Error calculating statistics:', error);
+            setStats({
+                overallAverage: 0,
+                bestSubject: { name: 'Error calculating', score: 0 }
+            });
         }
-        const averageScore = latestMarks.length ? totalScore / latestMarks.length : 0;
-        
-        // Find the best subject
-        let bestSubjectMark: Mark | null = null;
-        let bestSubjectName = 'Unknown Subject';
-        
-        latestMarks.forEach(mark => {
-            if (!bestSubjectMark || mark.score > bestSubjectMark.score) {
-                bestSubjectMark = mark;
-                bestSubjectName = subjectMap.get(mark.subjectId) || 'Unknown Subject';
-            }
-        });
-
-        setStats({
-            overallAverage: Math.round(averageScore * 10) / 10, // Round to 1 decimal place
-            bestSubject: { 
-                name: bestSubjectName, 
-                score: bestSubjectMark?.score || 0 
-            }
-        });
     };
 
     if (loading) {

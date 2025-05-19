@@ -222,15 +222,25 @@ const RegistrationTool = () => {
             await set(ref(database, `users/${firebaseUid}`), updatedUser);
             console.log('Saved updated user with Firebase UID');
             
-            // Remove the old user record if it's different from the new UID
+            // Try to remove the old user record if it's different from the new UID
             if (registration.id !== firebaseUid) {
-                await remove(userRef);
-                console.log('Removed old user record');
+                try {
+                    await remove(userRef);
+                    console.log('Removed old user record');
+                } catch (removalError) {
+                    console.warn('Could not remove old user record due to permissions, continuing anyway:', removalError);
+                    // This is not a critical error, we can continue
+                }
             }
             
             // Remove the pending registration
-            await remove(ref(database, `pendingRegistrations/${registration.id}`));
-            console.log('Removed pending registration');
+            try {
+                await remove(ref(database, `pendingRegistrations/${registration.id}`));
+                console.log('Removed pending registration');
+            } catch (pendingRemovalError) {
+                console.warn('Could not remove pending registration, continuing anyway:', pendingRemovalError);
+                // This is not a critical error either
+            }
             
             toast.success(`Activated account for ${registration.email}`);
             

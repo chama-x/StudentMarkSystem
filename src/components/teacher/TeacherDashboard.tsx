@@ -6,19 +6,53 @@ import RegistrationTool from './RegistrationTool';
 import SubjectManagement from './SubjectManagement';
 import { ref, get } from 'firebase/database';
 import { database } from '../../firebase';
-import { Student, Mark } from '../../types';
+import { Student, Mark, Term, Subject } from '../../types';
+import { getSubjects, addMark, updateMark, getStudentMarks } from '../../services/realtimeDatabase';
+import { toast } from 'react-hot-toast';
+
+// Define interfaces for database objects to fix TypeScript errors
+interface DatabaseUser {
+    uid: string;
+    email: string;
+    name: string;
+    role: string;
+    grade: number;
+}
 
 // Create standalone versions for the dashboard
 const StandaloneMarksComponent = () => {
+    const { currentUser } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [selectedGrade, setSelectedGrade] = useState<number>(1);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [studentMarks, setStudentMarks] = useState<Mark[]>([]);
+    const [subjects, setSubjects] = useState<Subject[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Form state for adding/editing marks
+    const [selectedSubject, setSelectedSubject] = useState<string>('');
+    const [score, setScore] = useState<string>('');
+    const [comment, setComment] = useState<string>('');
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [selectedTerm, setSelectedTerm] = useState<Term>('Term 1');
+    const [submitting, setSubmitting] = useState(false);
+    
+    // Generate array of years (current year and 2 years back)
+    const availableYears = Array.from({ length: 3 }, (_, i) => selectedYear - i);
 
     useEffect(() => {
         fetchStudents();
+        fetchSubjects();
     }, [selectedGrade]);
+
+    const fetchSubjects = async () => {
+        try {
+            const fetchedSubjects = await getSubjects(selectedGrade);
+            setSubjects(fetchedSubjects);
+        } catch (error) {
+            console.error('Error fetching subjects:', error);
+        }
+    };
 
     const fetchStudents = async () => {
         try {
@@ -29,12 +63,12 @@ const StandaloneMarksComponent = () => {
             
             const studentsList = Object.entries(usersData)
                 .filter(entry => {
-                    const user = entry[1] as any;
+                    const user = entry[1] as DatabaseUser;
                     return user.role === 'student' && Number(user.grade) === selectedGrade;
                 })
                 .map(entry => {
                     const id = entry[0];
-                    const user = entry[1] as any;
+                    const user = entry[1] as DatabaseUser;
                     return {
                         id,
                         name: user.name,
@@ -56,20 +90,8 @@ const StandaloneMarksComponent = () => {
     const fetchStudentMarks = async (studentId: string) => {
         try {
             setLoading(true);
-            
-            const marksRef = ref(database, 'marks');
-            const snapshot = await get(marksRef);
-            const marksData = snapshot.val() || {};
-            
-            const studentMarks = Object.entries(marksData)
-                .filter(([_, value]) => (value as any).studentId === studentId)
-                .map(([key, value]) => ({
-                    id: key,
-                    ...(value as any)
-                }))
-                .sort((a, b) => b.timestamp - a.timestamp);
-            
-            setStudentMarks(studentMarks);
+            const fetchedMarks = await getStudentMarks(studentId);
+            setStudentMarks(fetchedMarks);
         } catch (error) {
             console.error('Error fetching marks:', error);
         } finally {
@@ -80,6 +102,80 @@ const StandaloneMarksComponent = () => {
     const handleSelectStudent = (student: Student) => {
         setSelectedStudent(student);
         fetchStudentMarks(student.id);
+        
+        // Reset form when selecting a new student
+        setSelectedSubject('');
+        setScore('');
+        setComment('');
+    };
+    
+    const determineTermFromDate = (timestamp: number): Term => {
+        const date = new Date(timestamp);
+        const month = date.getMonth();
+        
+        if (month >= 0 && month <= 3) return 'Term 1';
+        if (month >= 4 && month <= 7) return 'Term 2';
+        return 'Term 3';
+    };
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!selectedStudent || !selectedSubject || !score || !currentUser) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
+
+        const scoreNum = Number(score);
+        if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+            toast.error('Score must be between 0 and 100');
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            
+            const existingMark = studentMarks.find(
+                mark => mark.subjectId === selectedSubject && mark.term === selectedTerm && mark.year === selectedYear
+            );
+
+            const markData: Omit<Mark, 'id'> = {
+                studentId: selectedStudent.id,
+                subjectId: selectedSubject,
+                grade: selectedGrade,
+                score: scoreNum,
+                comment,
+                teacherId: currentUser.uid,
+                timestamp: Date.now(),
+                year: selectedYear,
+                term: selectedTerm
+            };
+
+            if (existingMark) {
+                await updateMark(existingMark.id, markData);
+                toast.success('Mark updated successfully');
+            } else {
+                await addMark(markData);
+                toast.success('Mark added successfully');
+            }
+
+            // Reset form
+            setScore('');
+            setComment('');
+
+            // Refresh marks
+            fetchStudentMarks(selectedStudent.id);
+        } catch (error) {
+            console.error('Error saving mark:', error);
+            toast.error('Failed to save mark');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const getSubjectName = (subjectId: string): string => {
+        const subject = subjects.find(s => s.id === subjectId);
+        return subject ? subject.name : subjectId;
     };
 
     return (
@@ -109,7 +205,7 @@ const StandaloneMarksComponent = () => {
                     ) : students.length === 0 ? (
                         <p>No students found in Grade {selectedGrade}</p>
                     ) : (
-                        <div className="bg-gray-50 border border-gray-200 rounded-md overflow-hidden">
+                        <div className="bg-gray-50 border border-gray-200 rounded-md overflow-hidden max-h-96 overflow-y-auto">
                             <ul className="divide-y divide-gray-200">
                                 {students.map((student) => (
                                     <li 
@@ -134,6 +230,94 @@ const StandaloneMarksComponent = () => {
                             <h4 className="font-medium text-gray-900 mb-3">
                                 Marks for {selectedStudent.name}
                             </h4>
+                            
+                            {/* Add/Edit Mark Form */}
+                            <div className="bg-gray-50 p-4 rounded-md mb-6">
+                                <h5 className="font-medium text-gray-800 mb-2">Add/Edit Mark</h5>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Subject:</label>
+                                            <select
+                                                value={selectedSubject}
+                                                onChange={(e) => setSelectedSubject(e.target.value)}
+                                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                                required
+                                            >
+                                                <option value="">Select Subject</option>
+                                                {subjects.map((subject) => (
+                                                    <option key={subject.id} value={subject.id}>
+                                                        {subject.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Score:</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={score}
+                                                onChange={(e) => setScore(e.target.value)}
+                                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                                required
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Year:</label>
+                                            <select
+                                                value={selectedYear}
+                                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                            >
+                                                {availableYears.map((year) => (
+                                                    <option key={year} value={year}>
+                                                        {year}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Term:</label>
+                                            <select
+                                                value={selectedTerm}
+                                                onChange={(e) => setSelectedTerm(e.target.value as Term)}
+                                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                            >
+                                                <option value="Term 1">Term 1</option>
+                                                <option value="Term 2">Term 2</option>
+                                                <option value="Term 3">Term 3</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Comment:</label>
+                                        <textarea
+                                            value={comment}
+                                            onChange={(e) => setComment(e.target.value)}
+                                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            rows={2}
+                                        ></textarea>
+                                    </div>
+                                    
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                                        >
+                                            {submitting ? 'Saving...' : 'Save Mark'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            {/* Display Marks */}
                             {studentMarks.length === 0 ? (
                                 <p className="text-gray-500">No marks recorded yet.</p>
                             ) : (
@@ -144,14 +328,15 @@ const StandaloneMarksComponent = () => {
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Term</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200">
                                             {studentMarks.map(mark => (
-                                                <tr key={mark.id}>
+                                                <tr key={mark.id} className="hover:bg-gray-50">
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        {mark.subjectId}
+                                                        {getSubjectName(mark.subjectId)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -163,7 +348,10 @@ const StandaloneMarksComponent = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {mark.term || 'Unknown Term'}
+                                                        {mark.term || determineTermFromDate(mark.timestamp)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {mark.year || new Date(mark.timestamp).getFullYear()}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         {new Date(mark.timestamp).toLocaleDateString()}

@@ -3,6 +3,54 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import StudentManagement from './StudentManagement';
 import RegistrationTool from './RegistrationTool';
+import SubjectManagement from './SubjectManagement';
+
+// Create standalone versions for the dashboard
+const StandaloneMarksComponent = () => {
+    return (
+        <div className="bg-white shadow-lg rounded-lg p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mark Management</h3>
+            <p className="mb-4 text-gray-600">Select a student from the student management tab to enter marks.</p>
+            <div className="flex justify-center">
+                <button 
+                    onClick={() => {
+                        const studentsTab = document.querySelector('button[data-tab="students"]') as HTMLButtonElement;
+                        if (studentsTab) studentsTab.click();
+                    }}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    Go to Student Management
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const StandaloneSubjectsComponent = () => {
+    const [selectedGrade, setSelectedGrade] = useState<number>(1);
+    
+    return (
+        <div>
+            <div className="bg-white/20 p-4 mb-4 rounded-lg">
+                <label className="block text-sm font-medium text-white mb-2">
+                    Select Grade:
+                </label>
+                <select
+                    value={selectedGrade}
+                    onChange={(e) => setSelectedGrade(Number(e.target.value))}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((grade) => (
+                        <option key={grade} value={grade}>
+                            Grade {grade}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <SubjectManagement grade={selectedGrade} />
+        </div>
+    );
+};
 
 type TabType = 'marks' | 'subjects' | 'students' | 'registration';
 
@@ -29,9 +77,9 @@ const TeacherDashboard = () => {
     const renderTabContent = () => {
         switch (activeTab) {
             case 'marks':
-                return <div>Mark Management Component</div>;
+                return <StandaloneMarksComponent />;
             case 'subjects':
-                return <div>Subject Management Component</div>;
+                return <StandaloneSubjectsComponent />;
             case 'students':
                 return <StudentManagement />;
             case 'registration':
@@ -71,6 +119,7 @@ const TeacherDashboard = () => {
                         <div className="border-b border-white/20">
                             <nav className="-mb-px flex space-x-6 md:space-x-8 overflow-x-auto">
                                 <button
+                                    data-tab="students"
                                     onClick={() => setActiveTab('students')}
                                     className={`${
                                         activeTab === 'students'
@@ -81,6 +130,7 @@ const TeacherDashboard = () => {
                                     Manage Students
                                 </button>
                                 <button
+                                    data-tab="marks"
                                     onClick={() => setActiveTab('marks')}
                                     className={`${
                                         activeTab === 'marks'
@@ -91,6 +141,7 @@ const TeacherDashboard = () => {
                                     Manage Marks
                                 </button>
                                 <button
+                                    data-tab="subjects"
                                     onClick={() => setActiveTab('subjects')}
                                     className={`${
                                         activeTab === 'subjects'
@@ -101,6 +152,7 @@ const TeacherDashboard = () => {
                                     Manage Subjects
                                 </button>
                                 <button
+                                    data-tab="registration"
                                     onClick={() => setActiveTab('registration')}
                                     className={`${
                                         activeTab === 'registration'

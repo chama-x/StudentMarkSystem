@@ -75,11 +75,47 @@ const RegistrationTool = () => {
             const userSnapshot = await get(userRef);
             
             if (!userSnapshot.exists()) {
-                throw new Error("User data not found for this registration");
+                // Try to find the user by email instead
+                const usersRef = ref(database, 'users');
+                const allUsersSnapshot = await get(usersRef);
+                
+                if (!allUsersSnapshot.exists()) {
+                    throw new Error("No users found in database");
+                }
+                
+                const allUsers = allUsersSnapshot.val();
+                let foundUserId = null;
+                let foundUserData = null;
+                
+                // Search for a user with matching email
+                for (const [userId, userData] of Object.entries(allUsers)) {
+                    const user = userData as UserData;
+                    if (user.email === registration.email) {
+                        foundUserId = userId;
+                        foundUserData = user;
+                        break;
+                    }
+                }
+                
+                if (!foundUserId || !foundUserData) {
+                    // Create a basic user record if none exists
+                    foundUserId = registration.id;
+                    foundUserData = {
+                        email: registration.email,
+                        role: 'student',
+                        name: registration.email.split('@')[0],
+                        grade: 0
+                    };
+                    
+                    // Save this new user record
+                    await set(ref(database, `users/${registration.id}`), foundUserData);
+                    console.log('Created new user record for:', registration.email);
+                }
             }
             
-            const userData = userSnapshot.val() as Record<string, string | number | boolean>;
-            console.log('User data found:', userData);
+            // Fetch the user data again (either existing or newly created)
+            const updatedUserSnapshot = await get(userRef);
+            const userData = updatedUserSnapshot.val() as Record<string, string | number | boolean>;
             
             // Create the Firebase Auth account
             const userCredential = await createUserWithEmailAndPassword(
@@ -100,9 +136,11 @@ const RegistrationTool = () => {
             await set(ref(database, `users/${userCredential.user.uid}`), updatedUser);
             console.log('Saved updated user with Firebase UID');
             
-            // Remove the old user record
-            await remove(userRef);
-            console.log('Removed old user record');
+            // Remove the old user record if it's different from the new UID
+            if (registration.id !== userCredential.user.uid) {
+                await remove(userRef);
+                console.log('Removed old user record');
+            }
             
             // Remove the pending registration
             await remove(ref(database, `pendingRegistrations/${registration.id}`));

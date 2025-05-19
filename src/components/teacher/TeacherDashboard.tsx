@@ -174,6 +174,27 @@ const StandaloneMarksComponent = () => {
     };
 
     const getSubjectName = (subjectId: string): string => {
+        const subjectNames = [
+            'Sinhala',
+            'English',
+            'Mathematics',
+            'Science',
+            'History',
+            'Buddhism',
+            'Health & Physical Education',
+            'Art',
+            'Tamil'
+        ];
+        
+        // Check if it's a numeric ID (0, 1, 2, etc.)
+        if (/^\d+$/.test(subjectId)) {
+            const index = parseInt(subjectId, 10);
+            if (index >= 0 && index < subjectNames.length) {
+                return subjectNames[index];
+            }
+        }
+        
+        // Or use the subject by ID if found
         const subject = subjects.find(s => s.id === subjectId);
         return subject ? subject.name : subjectId;
     };

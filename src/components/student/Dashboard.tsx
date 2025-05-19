@@ -80,7 +80,7 @@ const Dashboard = () => {
         if (studentMarks.length === 0) {
             setStats({
                 overallAverage: 0,
-                bestSubject: { name: 'No data available', score: 0 }
+                bestSubject: { name: 'No subjects yet', score: 0 }
             });
             return;
         }
@@ -92,39 +92,83 @@ const Dashboard = () => {
                 subjectMap[subject.id] = subject.name;
             });
 
-            // Get the latest mark for each subject
-            const latestMarksBySubject: Record<string, Mark> = {};
+            // Log all subjects to debug
+            console.log('Available subjects:', allSubjects);
+            console.log('Subject map:', subjectMap);
+
+            // Get the latest mark for each subject with proper tracking
+            const latestMarksBySubject: Record<string, {mark: Mark, subjectName: string}> = {};
             
             studentMarks.forEach(mark => {
+                console.log('Processing mark:', mark);
                 const existingMark = latestMarksBySubject[mark.subjectId];
-                if (!existingMark || mark.timestamp > existingMark.timestamp) {
-                    latestMarksBySubject[mark.subjectId] = mark;
+                
+                // Get subject name - with fallbacks
+                let subjectName = subjectMap[mark.subjectId] || '';
+                
+                // If subject name not found in map, try to find it by iterating through all subjects
+                if (!subjectName) {
+                    const foundSubject = allSubjects.find(s => s.id === mark.subjectId);
+                    if (foundSubject) {
+                        subjectName = foundSubject.name;
+                        // Update the map for future lookups
+                        subjectMap[mark.subjectId] = foundSubject.name;
+                    } else {
+                        // Last resort - create a generic name based on ID
+                        subjectName = `Subject ${mark.subjectId.substring(0, 4)}`;
+                        console.warn(`Could not find subject name for ID: ${mark.subjectId}`);
+                    }
+                }
+                
+                if (!existingMark || mark.timestamp > existingMark.mark.timestamp) {
+                    latestMarksBySubject[mark.subjectId] = {
+                        mark,
+                        subjectName
+                    };
                 }
             });
 
-            // Get array of latest marks
+            // Get array of latest marks with their subject names
             const latestMarks = Object.values(latestMarksBySubject);
+            console.log('Latest marks with subject names:', latestMarks);
             
             // Calculate average score
             let totalScore = 0;
             let markCount = 0;
-            let bestScore = 0;
-            let bestSubjectId = '';
+            let bestScore = -1; // Start with -1 to ensure we pick something
+            let bestSubjectName = '';
             
-            for (const mark of latestMarks) {
-                if (typeof mark.score === 'number') {
-                    totalScore += mark.score;
+            for (const entry of latestMarks) {
+                if (typeof entry.mark.score === 'number') {
+                    totalScore += entry.mark.score;
                     markCount++;
                     
-                    if (mark.score > bestScore) {
-                        bestScore = mark.score;
-                        bestSubjectId = mark.subjectId;
+                    // Pick the best score, always taking the first in case of tie
+                    if (bestScore === -1 || entry.mark.score > bestScore) {
+                        bestScore = entry.mark.score;
+                        bestSubjectName = entry.subjectName;
                     }
                 }
             }
             
+            // If we couldn't find a best subject name, use a fallback
+            if (!bestSubjectName && markCount > 0) {
+                bestSubjectName = 'Your Top Subject';
+                console.warn('Failed to determine best subject name despite having marks');
+            }
+            
+            // If no subjects at all, use a friendly message
+            if (markCount === 0) {
+                bestSubjectName = 'No marks yet';
+                bestScore = 0;
+            }
+            
             const averageScore = markCount > 0 ? totalScore / markCount : 0;
-            const bestSubjectName = bestSubjectId ? (subjectMap[bestSubjectId] || 'Unknown Subject') : 'No data available';
+            
+            console.log('Statistics calculated:', {
+                overallAverage: Math.round(averageScore * 10) / 10,
+                bestSubject: { name: bestSubjectName, score: bestScore }
+            });
             
             setStats({
                 overallAverage: Math.round(averageScore * 10) / 10, // Round to 1 decimal place
@@ -137,7 +181,7 @@ const Dashboard = () => {
             console.error('Error calculating statistics:', error);
             setStats({
                 overallAverage: 0,
-                bestSubject: { name: 'Error calculating', score: 0 }
+                bestSubject: { name: 'Your performance', score: 0 }
             });
         }
     };

@@ -117,27 +117,70 @@ const RegistrationTool = () => {
             const updatedUserSnapshot = await get(userRef);
             const userData = updatedUserSnapshot.val() as Record<string, string | number | boolean>;
             
-            // Create the Firebase Auth account
-            const userCredential = await createUserWithEmailAndPassword(
-                auth, 
-                registration.email, 
-                registration.password
-            );
+            // Try to create Firebase Auth account or get existing one
+            let firebaseUid: string;
             
-            console.log('Created Firebase auth account:', userCredential.user.uid);
+            try {
+                // Try to create a new account
+                const userCredential = await createUserWithEmailAndPassword(
+                    auth, 
+                    registration.email, 
+                    registration.password
+                );
+                
+                firebaseUid = userCredential.user.uid;
+                console.log('Created Firebase auth account:', firebaseUid);
+            } catch (authError: unknown) {
+                // If email already in use, this account already exists
+                const firebaseError = authError as { code?: string; message?: string };
+                if (firebaseError?.code === 'auth/email-already-in-use') {
+                    // Email already exists, we need to find the existing user
+                    // This is tricky because we can't directly get a user by email with client SDK
+                    // For now, let's try a workaround - check if there's a user with this email already in our DB
+                    
+                    const usersRef = ref(database, 'users');
+                    const existingUsersSnapshot = await get(usersRef);
+                    
+                    if (existingUsersSnapshot.exists()) {
+                        const existingUsers = existingUsersSnapshot.val();
+                        let existingFirebaseUid = null;
+                        
+                        // Look for a user with matching email and a valid Firebase UID
+                        for (const [userId, userData] of Object.entries(existingUsers)) {
+                            const user = userData as UserData;
+                            if (user.email === registration.email && user.uid && userId === user.uid) {
+                                existingFirebaseUid = userId;
+                                break;
+                            }
+                        }
+                        
+                        if (existingFirebaseUid) {
+                            firebaseUid = existingFirebaseUid;
+                            console.log('Found existing Firebase auth account:', firebaseUid);
+                        } else {
+                            throw new Error("Email already has an account but could not determine the UID. Please try logging in with this email first.");
+                        }
+                    } else {
+                        throw new Error("No users found in database");
+                    }
+                } else {
+                    // Other auth error, rethrow
+                    throw firebaseError;
+                }
+            }
             
-            // Update the user record with the new UID
+            // Update the user record with the UID (new or existing)
             const updatedUser = {
                 ...userData,
-                uid: userCredential.user.uid
+                uid: firebaseUid
             };
             
             // Save the user with the Firebase UID
-            await set(ref(database, `users/${userCredential.user.uid}`), updatedUser);
+            await set(ref(database, `users/${firebaseUid}`), updatedUser);
             console.log('Saved updated user with Firebase UID');
             
             // Remove the old user record if it's different from the new UID
-            if (registration.id !== userCredential.user.uid) {
+            if (registration.id !== firebaseUid) {
                 await remove(userRef);
                 console.log('Removed old user record');
             }

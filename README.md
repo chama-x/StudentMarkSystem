@@ -29,10 +29,10 @@ A web application for managing student marks and academic records.
 
 1. **Clone the repository**
 
-```bash
+   ```bash
 git clone https://github.com/yourusername/StudentMarkSystem.git
-cd StudentMarkSystem
-```
+   cd StudentMarkSystem
+   ```
 
 2. **Run the setup script**
 
@@ -44,15 +44,15 @@ This script will guide you through setting up your environment variables and Fir
 
 3. **Install dependencies**
 
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
 4. **Run the development server**
 
-```bash
-npm run dev
-```
+   ```bash
+   npm run dev
+   ```
 
 The application will be available at `http://localhost:5173`.
 
@@ -65,8 +65,8 @@ The system comes with three default user accounts:
    - Password: Admin@123
 
 2. **Teacher**
-   - Email: teacher@school.com
-   - Password: Teacher@123
+- Email: teacher@school.com
+- Password: Teacher@123
 
 3. **Student**
    - Email: student@school.com

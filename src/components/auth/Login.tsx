@@ -2,14 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import { getUser, createUser } from '../../services/realtimeDatabase';
+import { getUser } from '../../services/realtimeDatabase';
 import { FirebaseError } from 'firebase/app';
 import schoolBg from '../../assets/school.webp';
 import SchoolLogo from '../common/SchoolLogo';
-import { database, auth } from '../../firebase';
-import { ref, get, remove } from 'firebase/database';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { User, UserRole } from '../../types';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -23,20 +19,6 @@ const Login = () => {
         
         try {
             setLoading(true);
-            
-            // Check pending registrations for this email first
-            const pendingRegistration = await checkPendingRegistration(email);
-            
-            if (pendingRegistration) {
-                // This is a student created by a teacher that needs to be activated
-                console.log('Found pending registration for:', email);
-                await activatePendingRegistration(pendingRegistration);
-                toast.success('Your account has been activated! Please login again.');
-                setLoading(false);
-                return;
-            }
-            
-            // Regular login flow
             const userCredential = await login(email, password);
             const userData = await getUser(userCredential.user.uid);
             
@@ -52,7 +34,7 @@ const Login = () => {
                 localStorage.setItem('teacherSession', JSON.stringify({
                     uid: userData.uid,
                     email: userData.email,
-                    cachedAuth: password.substring(0, 3) + '...' // Store partial password for security
+                    cachedAuth: password // Store password temporarily for re-auth if needed
                 }));
                 navigate('/teacher');
             }
@@ -60,102 +42,13 @@ const Login = () => {
             toast.success('Successfully logged in!');
         } catch (error) {
             console.error('Login error:', error);
-            if (error instanceof FirebaseError) {
-                if (error.code === 'auth/invalid-credential') {
-                    toast.error('Invalid email or password');
-                } else if (error.code === 'auth/user-not-found') {
-                    toast.error('No account found with this email');
-                } else {
-                    toast.error(`Login error: ${error.code}`);
-                }
+            if (error instanceof FirebaseError && error.code === 'auth/invalid-credential') {
+                toast.error('Invalid email or password');
             } else {
                 toast.error('Failed to log in');
             }
         } finally {
             setLoading(false);
-        }
-    };
-
-    // Define interfaces for typechecking
-    interface PendingRegistration {
-        id: string;
-        email: string;
-        password: string;
-        timestamp: number;
-    }
-
-    // Check if this is a pending registration created by a teacher
-    const checkPendingRegistration = async (email: string): Promise<PendingRegistration | null> => {
-        try {
-            const pendingsRef = ref(database, 'pendingRegistrations');
-            const snapshot = await get(pendingsRef);
-            
-            if (!snapshot.exists()) return null;
-            
-            const pendings = snapshot.val();
-            
-            // Find registration with matching email
-            for (const [key, value] of Object.entries(pendings)) {
-                const entry = value as Record<string, string | number>;
-                if (entry.email && typeof entry.email === 'string' && entry.email.toLowerCase() === email.toLowerCase()) {
-                    return { 
-                        id: key, 
-                        email: entry.email,
-                        password: entry.password as string,
-                        timestamp: (entry.timestamp as number) || Date.now()
-                    };
-                }
-            }
-            
-            return null;
-        } catch (error) {
-            console.error('Error checking pending registrations:', error);
-            return null;
-        }
-    };
-    
-    // Activate a pending registration by creating Firebase Auth account
-    const activatePendingRegistration = async (registration: PendingRegistration): Promise<boolean> => {
-        try {
-            // Get the associated user data
-            const userRef = ref(database, `users/${registration.id}`);
-            const userSnapshot = await get(userRef);
-            
-            if (!userSnapshot.exists()) {
-                throw new Error("User data not found for this registration");
-            }
-            
-            const userData = userSnapshot.val();
-            
-            // Create the Firebase Auth account
-            await createUserWithEmailAndPassword(
-                auth, 
-                registration.email, 
-                registration.password
-            );
-            
-            // Update the user data with the new uid
-            const newUser: User = {
-                ...userData,
-                role: 'student' as UserRole,
-                uid: auth.currentUser?.uid as string,
-            };
-            
-            if (!newUser.grade && userData.grade) {
-                newUser.grade = Number(userData.grade);
-            }
-            
-            // Save updated user data
-            await createUser(auth.currentUser?.uid as string, newUser);
-            
-            // Remove the pending registration
-            await remove(ref(database, `pendingRegistrations/${registration.id}`));
-            
-            console.log('Successfully activated account for:', registration.email);
-            return true;
-        } catch (error) {
-            console.error('Error activating account:', error);
-            throw error;
         }
     };
 

@@ -49,7 +49,7 @@ auth.useDeviceLanguage(); // Set language to browser's language
 setPersistence(auth, browserLocalPersistence)
   .then(() => {
     if (import.meta.env.DEV) {
-      console.log('Firebase Auth persistence set to local');
+    console.log('Firebase Auth persistence set to local');
     }
   })
   .catch((error) => {

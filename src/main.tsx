@@ -11,10 +11,10 @@ const rootElement = document.getElementById('root')
 if (rootElement) {
   console.log('Root element found, mounting React app')
   createRoot(rootElement).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
 } else {
   console.error('Root element not found! Check your HTML structure.')
 }

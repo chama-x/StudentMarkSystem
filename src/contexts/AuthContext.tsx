@@ -1,24 +1,19 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
     createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
     onAuthStateChanged,
     User as FirebaseUser,
-    UserCredential
+    UserCredential,
+    setPersistence,
+    browserLocalPersistence
 } from 'firebase/auth';
-import { createUser } from '../services/realtimeDatabase';
+import { createUser, getUser, updateUser } from '../services/realtimeDatabase';
 import { User, UserRole } from '../types';
 import { auth, database } from '../firebase';
 import { toast } from 'react-hot-toast';
-import { ref, update } from 'firebase/database';
-import { 
-    saveUserToStorage, 
-    getUserFromStorage, 
-    clearUserFromStorage,
-    loginUser,
-    logoutUser,
-    fetchUserData,
-    validateCurrentSession
-} from '../services/authService';
+import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
 
 interface AuthContextType {
     currentUser: User | null;
@@ -42,45 +37,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Initialize from local storage on first load
+    // Initialize persistence when the provider mounts
     useEffect(() => {
-        console.log('AuthProvider: Initializing from storage');
-        const storedUser = getUserFromStorage();
-        if (storedUser) {
-            console.log(`AuthProvider: Retrieved ${storedUser.role} from storage`);
-            setCurrentUser(storedUser);
-            setLoading(false);
-        }
+        const initAuth = async () => {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                console.log('Firebase Auth persistence initialized');
+            } catch (error) {
+                console.error('Error setting auth persistence:', error);
+            }
+        };
+        initAuth();
     }, []);
 
-    // User creation function
     const signup = async (email: string, password: string, role: UserRole, name: string, grade?: number) => {
         try {
-            // Prevent students from being created as teachers (extra security)
-            const lowerEmail = email.toLowerCase();
-            const finalRole = (lowerEmail.includes('student') || lowerEmail.includes('grade')) 
-                ? 'student' as UserRole 
-                : role;
-            
-            if (finalRole !== role) {
-                console.warn('Signup security: Email suggests student but role was teacher, correcting');
-            }
-            
             const { user } = await createUserWithEmailAndPassword(auth, email, password);
             
             const userData: User = {
                 uid: user.uid,
                 email: user.email!,
-                role: finalRole,
+                role,
                 name,
-                ...(finalRole === 'student' ? { grade: grade || 1 } : {})
+                ...(grade && { grade })
             };
 
             await createUser(user.uid, userData);
-            
-            // Save to localStorage for persistence
-            saveUserToStorage(userData);
-            
             toast.success('Account created successfully!');
         } catch (error) {
             console.error('Signup error:', error);
@@ -89,127 +71,143 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // User login function
     const login = async (email: string, password: string) => {
         try {
-            const userCredential = await loginUser(email, password);
-            setCurrentUser(userCredential);
-            return { user: auth.currentUser } as UserCredential;
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            return userCredential;
         } catch (error) {
-            console.error('Login error in context:', error);
+            console.error('Login error:', error);
             throw error;
         }
     };
 
-    // User logout function
     const logout = async () => {
         try {
-            await logoutUser();
-            setCurrentUser(null);
+            await signOut(auth);
+            localStorage.removeItem('teacherSession');
             toast.success('Logged out successfully');
         } catch (error) {
-            console.error('Logout error in context:', error);
+            console.error('Logout error:', error);
             toast.error('Failed to log out');
             throw error;
         }
     };
 
-    // Firebase auth state listener
     useEffect(() => {
         console.log('Setting up auth state listener');
-        let isUnmounting = false;
-        
         const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
             try {
-                // Prevent operations if component is unmounting
-                if (isUnmounting) return;
-                
                 if (user) {
-                    console.log('Auth state: User authenticated:', user.email);
+                    console.log('User authenticated:', user.email);
+                    const userData = await getUser(user.uid);
                     
-                    try {
-                        // Get user data from database and validate role
-                        const userData = await fetchUserData(user);
+                    if (userData) {
+                        console.log('User data found:', userData);
                         
-                        // Security: Fix incorrect role in database if needed
-                        if (userData.role === 'teacher' && userData.email.toLowerCase().includes('student')) {
-                            console.error('CRITICAL SECURITY: Found student with teacher role in database, fixing...');
-                            
+                        // Ensure student has a grade property
+                        if (userData.role === 'student' && !userData.grade) {
+                            console.log('Student user missing grade - fetching from database');
                             try {
-                                const correctUserData = {
-                                    ...userData,
-                                    role: 'student' as UserRole,
-                                    grade: userData.grade || 1
-                                };
+                                // Try to find the user's grade from the database by checking marks
+                                const marksRef = ref(database, 'marks');
+                                const studentMarksQuery = query(marksRef, orderByChild('studentId'), equalTo(user.uid));
+                                const snapshot = await get(studentMarksQuery);
                                 
-                                // Update in database
-                                await update(ref(database, `users/${userData.uid}`), correctUserData);
-                                
-                                // Use corrected data
-                                saveUserToStorage(correctUserData);
-                                setCurrentUser(correctUserData);
-                            } catch (roleFixError) {
-                                console.error('Failed to fix role in database:', roleFixError);
-                                // Still use corrected role in current session for security
-                                const correctedUserData = {
-                                    ...userData,
-                                    role: 'student' as UserRole,
-                                    grade: userData.grade || 1
-                                };
-                                saveUserToStorage(correctedUserData);
-                                setCurrentUser(correctedUserData);
+                                if (snapshot.exists()) {
+                                    // Get the first mark and extract the grade
+                                    let grade: number | null = null;
+                                    snapshot.forEach((childSnapshot) => {
+                                        if (!grade) {
+                                            grade = childSnapshot.val().grade;
+                                        }
+                                    });
+                                    
+                                    if (grade) {
+                                        console.log(`Found grade ${grade} for student ${user.email} from marks`);
+                                        userData.grade = grade;
+                                        // Update the user record with the grade
+                                        await updateUser(user.uid, { grade });
+                                    } else {
+                                        // Default to grade 1 if no grade found from marks
+                                        userData.grade = 1;
+                                        await updateUser(user.uid, { grade: 1 });
+                                    }
+                                } else {
+                                    // Default to grade 1 if no marks found
+                                    userData.grade = 1;
+                                    await updateUser(user.uid, { grade: 1 });
+                                }
+                            } catch (error) {
+                                console.error('Error finding student grade:', error);
+                                // Set a default grade
+                                userData.grade = 1;
                             }
-                        } else {
-                            // Normal case, user has correct role
-                            saveUserToStorage(userData);
-                            setCurrentUser(userData);
                         }
-                    } catch (userDataError) {
-                        console.error('Error getting user data from database:', userDataError);
                         
-                        // Try to use saved user data as fallback
-                        const storedUser = getUserFromStorage();
-                        if (storedUser && storedUser.uid === user.uid) {
-                            console.log('Using stored user data as fallback');
-                            setCurrentUser(storedUser);
-                        } else {
-                            // If all else fails, create minimal user data
-                            const fallbackUserData: User = {
-                                uid: user.uid,
-                                email: user.email || 'unknown@example.com',
-                                name: user.displayName || user.email?.split('@')[0] || 'Unknown User',
-                                role: user.email?.toLowerCase().includes('student') ? 'student' : 'teacher',
-                                ...(user.email?.toLowerCase().includes('student') ? { grade: 1 } : {})
-                            };
-                            setCurrentUser(fallbackUserData);
+                        setCurrentUser(userData as User);
+                    } else {
+                        // Check if this is a teacherSession in localStorage
+                        const teacherSession = localStorage.getItem('teacherSession');
+                        
+                        if (teacherSession) {
+                            // This means we're in a teacher session but the auth state changed
+                            // (likely due to student creation) - we should handle this specially
+                            console.log('Teacher session detected, maintaining session');
+                            
+                            // Try to get the teacher user
+                            const teacherData = JSON.parse(teacherSession);
+                            const teacherUser = await getUser(teacherData.uid);
+                            
+                            if (teacherUser) {
+                                setCurrentUser(teacherUser as User);
+                                // Re-authenticate as the teacher silently
+                                // This is just for the auth state, without affecting the UI
+                                try {
+                                    await signInWithEmailAndPassword(auth, teacherData.email, teacherData.cachedAuth);
+                                } catch (error) {
+                                    // If we can't re-auth, we'll just keep the teacher data anyway
+                                    console.warn('Failed to re-authenticate teacher', error);
+                                }
+                                return;
+                            }
                         }
+                        
+                        // If no teacher session or teacher not found, fall back to creating basic user data
+                        console.log('Creating basic user data');
+                        
+                        // Try to determine if this is a student account by email pattern
+                        const isStudentEmail = user.email?.includes('student') || user.email?.includes('grade');
+                        const defaultRole: UserRole = isStudentEmail ? 'student' : 'teacher';
+                        
+                        // For students, try to extract grade from email or default to grade 1
+                        let grade = 1;
+                        if (defaultRole === 'student') {
+                            const gradeMatch = user.email?.match(/grade(\d+)/i);
+                            if (gradeMatch && gradeMatch[1]) {
+                                grade = parseInt(gradeMatch[1], 10);
+                            }
+                        }
+                        
+                        const basicUserData: User = {
+                            uid: user.uid,
+                            email: user.email!,
+                            role: defaultRole,
+                            name: user.displayName || user.email!.split('@')[0],
+                            ...(defaultRole === 'student' ? { grade } : {})
+                        };
+                        
+                        await createUser(user.uid, basicUserData);
+                        setCurrentUser(basicUserData);
                     }
                 } else {
-                    console.log('Auth state: No user authenticated');
-                    
-                    // If Firebase says no user but we have valid stored session, keep using it
-                    if (validateCurrentSession()) {
-                        const storedUser = getUserFromStorage();
-                        console.log('No Firebase auth but valid stored session exists:', storedUser?.email);
-                        setCurrentUser(storedUser);
-                    } else {
-                        console.log('No valid session found, clearing user');
-                        clearUserFromStorage();
-                        setCurrentUser(null);
-                    }
+                    console.log('No user authenticated');
+                    localStorage.removeItem('teacherSession');
+                    setCurrentUser(null);
                 }
             } catch (error) {
                 console.error('Auth state change error:', error);
                 toast.error('Authentication error occurred');
-                
-                // Try using stored data on error
-                const storedUser = getUserFromStorage();
-                if (storedUser) {
-                    console.log('Error in auth state change but using stored user data');
-                    setCurrentUser(storedUser);
-                } else {
-                    setCurrentUser(null);
-                }
+                setCurrentUser(null);
             } finally {
                 setLoading(false);
             }
@@ -217,27 +215,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return () => {
             console.log('Cleaning up auth state listener');
-            isUnmounting = true;
             unsubscribe();
         };
     }, []);
-
-    // Set up special handling for page refresh/reload
-    useEffect(() => {
-        const handleBeforeUnload = () => {
-            // Ensure current user is saved before page refresh
-            if (currentUser) {
-                console.log('Page refresh detected, ensuring user data is saved');
-                saveUserToStorage(currentUser);
-            }
-        };
-        
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        
-        return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-        };
-    }, [currentUser]);
 
     const value = {
         currentUser,
@@ -249,7 +229,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {(!loading || getUserFromStorage()) && children}
+            {!loading && children}
         </AuthContext.Provider>
     );
 }; 

@@ -3,6 +3,7 @@ import { database, auth } from '../../firebase';
 import { ref, get, set, remove, update } from 'firebase/database';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from 'react-hot-toast';
+import { UserRole } from '../../types';
 
 interface PendingRegistration {
     id: string;
@@ -144,21 +145,63 @@ const RegistrationTool = () => {
                     if (existingUsersSnapshot.exists()) {
                         const existingUsers = existingUsersSnapshot.val();
                         let existingFirebaseUid = null;
+                        let matchedUserData = null;
                         
-                        // Look for a user with matching email and a valid Firebase UID
+                        // First, look for a user with matching email and a valid Firebase UID (ideal case)
                         for (const [userId, userData] of Object.entries(existingUsers)) {
                             const user = userData as UserData;
                             if (user.email === registration.email && user.uid && userId === user.uid) {
                                 existingFirebaseUid = userId;
+                                matchedUserData = user;
+                                console.log('Found perfect UID match:', existingFirebaseUid);
                                 break;
+                            }
+                        }
+                        
+                        // If that fails, look for any user with matching email (partial match)
+                        if (!existingFirebaseUid) {
+                            for (const [userId, userData] of Object.entries(existingUsers)) {
+                                const user = userData as UserData;
+                                if (user.email === registration.email) {
+                                    // This is a user with the right email but not stored under their auth UID
+                                    // We'll use this as a fallback
+                                    existingFirebaseUid = user.uid || userId;
+                                    matchedUserData = user;
+                                    console.log('Found email match with UID:', existingFirebaseUid);
+                                    break;
+                                }
                             }
                         }
                         
                         if (existingFirebaseUid) {
                             firebaseUid = existingFirebaseUid;
                             console.log('Found existing Firebase auth account:', firebaseUid);
+                            
+                            // If we have a mismatch between storage location and UID, fix it
+                            if (matchedUserData && matchedUserData.uid !== existingFirebaseUid) {
+                                console.log('Fixing mismatched UID in database');
+                                const fixedData = {
+                                    ...matchedUserData,
+                                    uid: existingFirebaseUid
+                                };
+                                await set(ref(database, `users/${existingFirebaseUid}`), fixedData);
+                            }
                         } else {
-                            throw new Error("Email already has an account but could not determine the UID. Please try logging in with this email first.");
+                            // Special case: Email exists in Firebase Auth but no matching user in database
+                            // Let's create a basic user record for this email
+                            console.log('Creating new user record for existing Firebase auth email');
+                            const newUserData = {
+                                email: registration.email,
+                                role: 'student' as UserRole,
+                                name: registration.email.split('@')[0],
+                                grade: 0
+                            };
+                            
+                            // We don't know the UID from Firebase Auth, but we'll find out when they login
+                            // For now, create a temporary user that will be fixed on next login
+                            await set(ref(database, `users/${registration.id}`), newUserData);
+                            
+                            throw new Error("Email already has an account. Created a student record - please ask the student to log in to complete setup.");
                         }
                     } else {
                         throw new Error("No users found in database");

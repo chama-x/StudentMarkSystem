@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
@@ -13,9 +13,6 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
-  },
-  css: {
-    postcss: './postcss.config.js',
   },
   build: {
     // Ensure proper assets handling
@@ -54,11 +51,7 @@ export default defineConfig({
   },
   // This is important: set the base URL to '/' for proper asset loading
   base: '/',
-  // Ensure proper MIME types
   server: {
-    headers: {
-      'Content-Type': 'application/javascript',
-    },
     // Increase HMR timeout to allow for more time during development
     hmr: {
       timeout: 5000,

@@ -11,11 +11,23 @@
         console.log('DOM fully loaded');
         const rootElement = document.getElementById('root');
         console.log('Root element status:', rootElement ? 'Found' : 'Not found');
+        
+        // Additional debugging
+        setTimeout(() => {
+          console.log('Checking if React mounted after 2 seconds...');
+          const rootContent = document.getElementById('root').innerHTML;
+          console.log('Root content length:', rootContent.length);
+          if (rootContent.length === 0) {
+            console.error('React app did not mount! Root div is still empty.');
+          } else {
+            console.log('React app mounted successfully!');
+          }
+        }, 2000);
       });
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx?v=2"></script>
   </body>
 </html>

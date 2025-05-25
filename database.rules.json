@@ -1,6 +1,6 @@
-{
-  "rules": {
-    ".read": "auth != null",
+   {
+     "rules": {
+       ".read": "auth != null",
     ".write": false,
     "users": {
       ".indexOn": ["grade", "role"],
@@ -10,27 +10,27 @@
         ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
       }
     },
-    "marks": {
+       "marks": {
       ".read": "auth != null",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
       ".indexOn": ["studentId", "subjectId", "grade"],
       "$markId": {
-        ".read": "auth != null",
+         ".read": "auth != null",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
       }
-    },
+       },
     "pendingRegistrations": {
-      ".read": "auth != null",
+         ".read": "auth != null",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
-    },
-    "subjects": {
-      ".read": "auth != null",
+       },
+       "subjects": {
+         ".read": "auth != null",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
       ".indexOn": ["grade", "name"]
     },
     "connection_test": {
       ".read": true,
       ".write": true
-    }
-  }
-}
+       }
+     }
+   }

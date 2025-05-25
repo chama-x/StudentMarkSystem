@@ -34,8 +34,8 @@ class ErrorBoundary extends React.Component<
 }
 
 // Improved lazy loading with retries
-const retryLazy = (importFn: () => Promise<any>, retries = 3, interval = 1000) => {
-  return new Promise<any>((resolve, reject) => {
+const retryLazy = (importFn: () => Promise<{ default: React.ComponentType }>, retries = 3, interval = 1000) => {
+  return new Promise<{ default: React.ComponentType }>((resolve, reject) => {
     const retry = (count: number) => {
       importFn()
         .then(resolve)
@@ -95,64 +95,71 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   return <>{children}</>;
 };
 
-function App() {
+// App Routes Component (inside AuthProvider)
+const AppRoutes = () => {
   useEffect(() => {
     initializeDatabase();
   }, []);
 
   return (
-    <Router>
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <ErrorBoundary fallback={<ErrorFallback />}>
-            <Suspense fallback={<LoadingSpinner />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                
-                {/* Protected Student Routes */}
-                <Route 
-                  path="/student/*" 
-                  element={
-                    <ProtectedRoute allowedRoles={['student']}>
-                      <StudentDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Protected Teacher Routes */}
-                <Route 
-                  path="/teacher/*" 
-                  element={
-                    <ProtectedRoute allowedRoles={['teacher']}>
-                      <TeacherDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Advanced Management Route */}
-                <Route 
-                  path="/teacher/advanced" 
-                  element={
-                    <ProtectedRoute allowedRoles={['teacher']}>
-                      <AdvancedManagement />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Default Route */}
-                <Route path="/" element={<Navigate to="/login" />} />
-                
-                {/* Catch-all route */}
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </Suspense>
-          </ErrorBoundary>
-          <Toaster position="top-right" />
-        </div>
-      </AuthProvider>
-    </Router>
+    <div className="min-h-screen bg-gray-50">
+      <ErrorBoundary fallback={<ErrorFallback />}>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            {/* Protected Student Routes */}
+            <Route 
+              path="/student/*" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Protected Teacher Routes */}
+            <Route 
+              path="/teacher/*" 
+              element={
+                <ProtectedRoute allowedRoles={['teacher']}>
+                  <TeacherDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Advanced Management Route */}
+            <Route 
+              path="/teacher/advanced" 
+              element={
+                <ProtectedRoute allowedRoles={['teacher']}>
+                  <AdvancedManagement />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Default Route */}
+            <Route path="/" element={<Navigate to="/login" />} />
+            
+            {/* Catch-all route */}
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+      <Toaster position="top-right" />
+    </div>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
   );
 }
 

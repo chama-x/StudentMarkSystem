@@ -11,7 +11,12 @@
     "setup": "node setup.js",
     "predeploy": "npm run build",
     "deploy:netlify": "netlify deploy",
-    "deploy:netlify:prod": "netlify deploy --prod"
+    "deploy:netlify:prod": "netlify deploy --prod",
+    "db:reset": "node scripts/resetDatabase.cjs",
+    "db:generate": "node scripts/generateTestData.cjs",
+    "db:verify": "node scripts/verifyData.cjs",
+    "db:setup": "node scripts/setupComplete.cjs",
+    "db:web-setup": "node scripts/webSetup.cjs"
   },
   "dependencies": {
     "@heroicons/react": "2.1.1",
